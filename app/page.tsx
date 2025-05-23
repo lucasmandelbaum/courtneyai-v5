@@ -1,15 +1,13 @@
 "use client"
 
 import Link from "next/link"
-import { Search, Plus, ImageIcon } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent } from "@/components/ui/card"
+import { Search, Plus, ImageIcon, TrendingUp, BarChart3, Sparkles } from "lucide-react"
+import { Card, CardHeader, CardBody, Input, Button, Chip, Skeleton, Divider } from "@heroui/react"
 import { ProductImportModal } from "@/components/product-import-modal"
 import { useProducts } from "@/hooks/useProducts"
-import { Skeleton } from "@/components/ui/skeleton"
 import { UsageTracker } from "@/components/usage-tracker"
 import { UsageLimitAlert } from "@/components/usage-limit-alert"
+import { useState } from "react"
 
 // Define the extended Product type based on the hook query with counts
 type ProductWithCounts = {
@@ -28,47 +26,69 @@ type ProductWithCounts = {
 
 export default function Dashboard() {
   const { products: rawProducts, isLoading } = useProducts()
+  const [isUsageAlertDismissed, setIsUsageAlertDismissed] = useState(false)
   
   // Cast the products to the expected type with counts
   const products = rawProducts as unknown as ProductWithCounts[];
 
   if (isLoading) {
     return (
-      <div className="container mx-auto px-4 md:px-6 py-6">
-        <div className="flex flex-col gap-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <Skeleton className="h-8 w-32" />
-            <Skeleton className="h-10 w-40" />
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 py-8 space-y-8">
+          {/* Header Skeleton */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
+            <div className="space-y-3">
+              <Skeleton className="w-48 h-9" />
+              <Skeleton className="w-80 h-5" />
+            </div>
+            <Skeleton className="w-40 h-12" />
           </div>
 
-          {/* Usage Tracker Skeleton */}
-          <div className="space-y-4">
-            <Skeleton className="h-4 w-full" />
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          {/* Usage Alert Skeleton */}
+          <Skeleton className="w-full h-24" />
+
+          {/* Usage Cards Skeleton */}
+          <div className="space-y-6">
+            <Skeleton className="w-48 h-7" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               {Array.from({ length: 5 }).map((_, i) => (
                 <Card key={i}>
-                  <CardContent className="p-4">
-                    <Skeleton className="h-4 w-3/4 mb-2" />
-                    <Skeleton className="h-2 w-full mb-1" />
-                    <Skeleton className="h-3 w-1/2" />
-                  </CardContent>
+                  <CardBody>
+                    <div className="flex items-center gap-3">
+                      <Skeleton className="w-10 h-10" />
+                      <Skeleton className="w-20 h-4" />
+                    </div>
+                    <Skeleton className="w-16 h-8" />
+                    <Skeleton className="w-full h-2" />
+                    <Skeleton className="w-12 h-3 mx-auto" />
+                  </CardBody>
                 </Card>
               ))}
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-            <Skeleton className="h-10 w-72" />
+          {/* Search Skeleton */}
+          <div className="space-y-4">
+            <Skeleton className="w-32 h-7" />
+            <Skeleton className="w-full sm:w-96 h-12" />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <Card key={i} className="overflow-hidden">
-                <Skeleton className="aspect-video" />
-                <CardContent className="p-4">
-                  <Skeleton className="h-6 w-3/4 mb-2" />
-                  <Skeleton className="h-4 w-1/2" />
-                </CardContent>
+          {/* Product Grid Skeleton */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Card key={i} className="w-full min-w-[280px] max-w-[400px] flex flex-col h-full">
+                <CardHeader className="p-0">
+                  <Skeleton className="w-full aspect-[4/3] rounded-t-lg" />
+                </CardHeader>
+                <CardBody className="px-4 py-3 flex-grow flex flex-col justify-between">
+                  <div>
+                    <Skeleton className="w-3/4 h-5 mb-2" />
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <Skeleton className="w-16 h-6 rounded-full" />
+                    <Skeleton className="w-16 h-6 rounded-full" />
+                  </div>
+                </CardBody>
               </Card>
             ))}
           </div>
@@ -78,57 +98,113 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="container mx-auto px-4 md:px-6 py-6">
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <h1 className="text-2xl font-bold">Dashboard</h1>
-          <ProductImportModal>
-            <Button size="lg" className="gap-2">
-              <Plus className="h-5 w-5" />
-              Add Product
-            </Button>
-          </ProductImportModal>
-        </div>
-
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 py-8 space-y-8">
         {/* Usage Alert */}
-        <UsageLimitAlert />
+        {!isUsageAlertDismissed && (
+          <UsageLimitAlert onDismiss={() => setIsUsageAlertDismissed(true)} />
+        )}
 
-        {/* Usage Overview */}
-        <UsageTracker variant="compact" />
-
-        <div className="flex gap-4 items-center w-full sm:w-72">
-          <div className="relative w-full">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input type="search" placeholder="Search products..." className="w-full pl-8" />
+        {/* Products Section */}
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-semibold text-gray-800">Your Products</h2>
+            <ProductImportModal>
+              <Button 
+                color="primary" 
+                startContent={<Plus className="w-4 h-4" />}
+              >
+                Add Product
+              </Button>
+            </ProductImportModal>
           </div>
+          <Divider />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {products.map((product) => (
-            <Link href={`/product/${product.id}`} key={product.id} className="block h-full">
-              <Card className="overflow-hidden h-full hover:shadow-md transition-shadow">
-                <div className="aspect-video bg-muted relative">
-                  {product.thumbnail_url ? (
-                    <img 
-                      src={product.thumbnail_url} 
-                      alt={product.name} 
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
-                      <ImageIcon className="h-12 w-12 opacity-20" />
-                    </div>
-                  )}
+        {/* Products Grid */}
+        <div>
+          {products.length === 0 ? (
+            <Card className="max-w-md mx-auto">
+              <CardBody className="text-center px-6 py-8">
+                <div className="w-16 h-16 mx-auto bg-default-100 rounded-full flex items-center justify-center mb-4">
+                  <ImageIcon className="w-8 h-8 text-default-400" />
                 </div>
-                <CardContent className="p-3">
-                  <h3 className="font-medium line-clamp-1">{product.name}</h3>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Last updated: {new Date(product.updated_at || product.created_at).toLocaleDateString()}
-                  </p>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
+                <h3 className="text-large font-semibold text-default-900 mb-2">Ready to create amazing content?</h3>
+                <p className="text-small text-default-500 mb-6">
+                  Add your first product and start generating engaging video content.
+                </p>
+                <ProductImportModal>
+                  <Button 
+                    color="primary" 
+                    startContent={<Plus className="w-4 h-4" />}
+                  >
+                    Add Your First Product
+                  </Button>
+                </ProductImportModal>
+              </CardBody>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {products.map((product) => (
+                <Link href={`/product/${product.id}`} key={product.id}>
+                  <Card isPressable className="w-full min-w-[280px] max-w-[400px] hover:shadow-lg transition-shadow flex flex-col h-full">
+                    <CardHeader className="p-0">
+                      {product.thumbnail_url ? (
+                        <img 
+                          src={product.thumbnail_url} 
+                          alt={product.name} 
+                          className="w-full aspect-[4/3] object-cover rounded-t-lg"
+                        />
+                      ) : (
+                        <div className="w-full aspect-[4/3] bg-default-100 flex items-center justify-center rounded-t-lg">
+                          <ImageIcon className="w-12 h-12 text-default-300" />
+                        </div>
+                      )}
+                    </CardHeader>
+                    
+                    <CardBody className="px-4 py-3 flex-grow flex flex-col justify-between">
+                      <div>
+                        <h4 className="text-large font-semibold leading-none text-default-900 mb-2">
+                          {product.name}
+                        </h4>
+                      </div>
+                      
+                      {(product.scripts?.count || product.reels?.count || product.photos?.count) ? (
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {product.scripts?.count && (
+                            <Chip size="sm" color="primary" variant="flat">
+                              {product.scripts.count} scripts
+                            </Chip>
+                          )}
+                          {product.reels?.count && (
+                            <Chip size="sm" color="secondary" variant="flat">
+                              {product.reels.count} reels
+                            </Chip>
+                          )}
+                          {product.photos?.count && (
+                            <Chip size="sm" color="success" variant="flat">
+                              {product.photos.count} photos
+                            </Chip>
+                          )}
+                        </div>
+                      ) : (
+                        <Chip size="sm" color="default" variant="flat" className="w-fit mt-2">
+                          Ready to start
+                        </Chip>
+                      )}
+                    </CardBody>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Usage Overview Section */}
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold text-gray-800">Usage Overview</h2>
+          <Divider />
+          <UsageTracker variant="compact" />
         </div>
       </div>
     </div>

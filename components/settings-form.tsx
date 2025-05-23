@@ -1,18 +1,19 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Button } from "@/components/ui/button"
+import { Card, CardBody, CardHeader, Input, Button, Divider } from "@heroui/react"
 import { useAuth } from "@/hooks/useAuth"
 import { createBrowserSupabaseClient } from "@/lib/supabase-browser"
 import { toast } from "sonner"
+import { User, Lock } from "lucide-react"
 
 export function SettingsForm() {
   const { user, isLoading: authLoading } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
   const [displayName, setDisplayName] = useState("")
+  const [currentPassword, setCurrentPassword] = useState("")
+  const [newPassword, setNewPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
   const supabase = createBrowserSupabaseClient()
 
   useEffect(() => {
@@ -37,15 +38,14 @@ export function SettingsForm() {
     }
   }
 
-  const handlePasswordChange = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const formData = new FormData(e.currentTarget)
-    const currentPassword = formData.get("current-password") as string
-    const newPassword = formData.get("new-password") as string
-    const confirmPassword = formData.get("confirm-password") as string
-
+  const handlePasswordChange = async () => {
     if (newPassword !== confirmPassword) {
       toast.error("New passwords do not match")
+      return
+    }
+
+    if (newPassword.length < 6) {
+      toast.error("Password must be at least 6 characters long")
       return
     }
 
@@ -58,7 +58,10 @@ export function SettingsForm() {
       if (error) throw error
       
       toast.success("Password updated successfully")
-      e.currentTarget.reset()
+      // Clear password fields
+      setCurrentPassword("")
+      setNewPassword("")
+      setConfirmPassword("")
     } catch (error: any) {
       toast.error(error.message)
     } finally {
@@ -67,79 +70,109 @@ export function SettingsForm() {
   }
 
   if (authLoading) {
-    return <div>Loading...</div>
+    return (
+      <div className="space-y-8">
+        <Card>
+          <CardBody>
+            <div className="animate-pulse space-y-4">
+              <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+              <div className="h-10 bg-gray-200 rounded"></div>
+              <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+              <div className="h-10 bg-gray-200 rounded"></div>
+            </div>
+          </CardBody>
+        </Card>
+      </div>
+    )
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Profile</CardTitle>
-          <CardDescription>Manage your account settings and preferences.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Display Name</Label>
-            <Input 
-              id="name" 
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
+    <div className="space-y-8">
+      {/* Profile Section */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <User className="h-5 w-5 text-gray-600" />
+          <h3 className="text-lg font-semibold text-gray-800">Profile Information</h3>
+        </div>
+        <Divider />
+        
+        <Card>
+          <CardBody className="space-y-6">
+            <Input
+              label="Display Name"
               placeholder="Enter your display name"
+              value={displayName}
+              onValueChange={setDisplayName}
+              variant="bordered"
             />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input 
-              id="email" 
-              type="email" 
+            
+            <Input
+              label="Email"
+              placeholder="Your email address"
               value={user?.email || ""}
-              disabled
+              isReadOnly
+              variant="bordered"
+              description="Email cannot be changed directly. Contact support if needed."
             />
-          </div>
-        </CardContent>
-        <CardFooter>
-          <Button 
-            onClick={handleProfileUpdate}
-            disabled={isLoading}
-          >
-            {isLoading ? "Saving..." : "Save Changes"}
-          </Button>
-        </CardFooter>
-      </Card>
+            
+            <div className="flex justify-end">
+              <Button 
+                color="primary"
+                onClick={handleProfileUpdate}
+                isLoading={isLoading}
+                isDisabled={!displayName.trim() || displayName === user?.user_metadata?.full_name}
+              >
+                Save Changes
+              </Button>
+            </div>
+          </CardBody>
+        </Card>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Password</CardTitle>
-          <CardDescription>Update your password to keep your account secure.</CardDescription>
-        </CardHeader>
-        <form onSubmit={handlePasswordChange}>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="new-password">New Password</Label>
-              <Input 
-                id="new-password" 
-                name="new-password"
-                type="password" 
-                required
-              />
+      {/* Password Section */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Lock className="h-5 w-5 text-gray-600" />
+          <h3 className="text-lg font-semibold text-gray-800">Change Password</h3>
+        </div>
+        <Divider />
+        
+        <Card>
+          <CardBody className="space-y-6">
+            <Input
+              label="New Password"
+              type="password"
+              placeholder="Enter new password"
+              value={newPassword}
+              onValueChange={setNewPassword}
+              variant="bordered"
+              description="Must be at least 6 characters long"
+            />
+            
+            <Input
+              label="Confirm New Password"
+              type="password"
+              placeholder="Confirm new password"
+              value={confirmPassword}
+              onValueChange={setConfirmPassword}
+              variant="bordered"
+              color={newPassword && confirmPassword && newPassword !== confirmPassword ? "danger" : "default"}
+              errorMessage={newPassword && confirmPassword && newPassword !== confirmPassword ? "Passwords do not match" : ""}
+            />
+            
+            <div className="flex justify-end">
+              <Button 
+                color="primary"
+                onClick={handlePasswordChange}
+                isLoading={isLoading}
+                isDisabled={!newPassword || !confirmPassword || newPassword !== confirmPassword}
+              >
+                Change Password
+              </Button>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirm-password">Confirm New Password</Label>
-              <Input 
-                id="confirm-password" 
-                name="confirm-password"
-                type="password"
-                required
-              />
-            </div>
-          </CardContent>
-          <CardFooter>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? "Updating..." : "Change Password"}
-            </Button>
-          </CardFooter>
-        </form>
-      </Card>
+          </CardBody>
+        </Card>
+      </div>
     </div>
   )
 } 

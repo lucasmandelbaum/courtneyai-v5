@@ -32,7 +32,7 @@ export function LayoutWithConditionalSidebar({ children }: { children: ReactNode
   return (
     <div className="min-h-screen">
       {!isAuthRoute && <TopNav />}
-      <main className="pt-16">{children}</main>
+      <main className={!isAuthRoute ? "pt-16" : ""}>{children}</main>
     </div>
   )
 } 

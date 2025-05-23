@@ -2,27 +2,30 @@
 
 import React from "react"
 import Link from "next/link"
-import { AlertTriangle, TrendingUp, X, Zap } from "lucide-react"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+import { X } from "lucide-react"
+import { Card, CardBody, Button } from "@heroui/react"
 import { useUsage, UsageData, UsageMetrics } from "@/hooks/useUsage"
 import { useState } from "react"
 
 interface UsageLimitAlertProps {
   metric?: keyof UsageMetrics
   onDismiss?: () => void
-  showCompact?: boolean
   className?: string
 }
 
 interface AlertContent {
   title: string
   description: string
-  variant: "default" | "destructive" | "warning"
   actionText: string
-  actionVariant: "default" | "destructive" | "secondary"
 }
+
+const metricLabels: Record<keyof UsageMetrics, string> = {
+  scripts_per_month: "AI scripts",
+  reels_per_month: "Reels",
+  media_uploads_per_month: "Media uploads",
+  products: "Products",
+  team_members: "Team Members",
+};
 
 const getAlertContent = (
   metric: keyof UsageMetrics, 
@@ -30,49 +33,28 @@ const getAlertContent = (
   isAtLimit: boolean, 
   isNearLimit: boolean
 ): AlertContent => {
-  const metricLabels = {
-    scripts_per_month: "AI scripts",
-    reels_per_month: "reels",
-    media_uploads_per_month: "media uploads",
-    products: "products",
-    team_members: "team members"
-  }
-
-  const label = metricLabels[metric] || metric
+  const label = metricLabels[metric] || metric.replace(/_/g, " ");
 
   if (isAtLimit) {
     return {
       title: `${label.charAt(0).toUpperCase() + label.slice(1)} limit reached`,
-      description: `You've used all ${data.limit} ${label} included in your ${data.planName}. Upgrade to continue using this feature.`,
-      variant: "destructive",
+      description: `You've used all ${data.limit} ${label.toLowerCase()} included in your ${data.planName} Plan. Upgrade to continue using this feature.`,
       actionText: "Upgrade Now",
-      actionVariant: "destructive"
     }
   }
 
-  if (isNearLimit) {
-    return {
-      title: `Approaching ${label} limit`,
-      description: `You've used ${data.currentUsage} of ${data.limit} ${label} in your ${data.planName}. Consider upgrading to avoid interruptions.`,
-      variant: "warning",
-      actionText: "Upgrade Plan",
-      actionVariant: "secondary"
-    }
-  }
-
+  // isNearLimit is implicitly true if we reach here and it's not isAtLimit, 
+  // but the main component logic already filters for this.
   return {
-    title: "",
-    description: "",
-    variant: "default",
-    actionText: "",
-    actionVariant: "default"
+    title: `Approaching ${label.toLowerCase()} limit`,
+    description: `You've used ${data.currentUsage} of ${data.limit} ${label.toLowerCase()} in your ${data.planName} Plan. Consider upgrading.`,
+    actionText: "Upgrade Plan",
   }
 }
 
 export function UsageLimitAlert({ 
   metric, 
   onDismiss, 
-  showCompact = false, 
   className = "" 
 }: UsageLimitAlertProps) {
   const { usage, isAtLimit, isNearLimit } = useUsage()
@@ -80,167 +62,113 @@ export function UsageLimitAlert({
 
   if (dismissed) return null
 
-  // If a specific metric is provided, check only that one
+  let metricsToShow: [keyof UsageMetrics, UsageData][] = []
+  let mainAlertMetric: keyof UsageMetrics | null = null
+  let mainAlertData: UsageData | null = null
+  let mainAlertIsAtLimit = false
+
   if (metric) {
     const data = usage[metric]
-    if (!data) return null
+    if (data && (isAtLimit(metric) || isNearLimit(metric))) {
+      mainAlertMetric = metric
+      mainAlertData = data
+      mainAlertIsAtLimit = isAtLimit(metric)
+    }
+  } else {
+    const limitedMetrics = (Object.entries(usage) as [keyof UsageMetrics, UsageData][])
+      .filter(([m, d]) => d && isAtLimit(m))
+    const warningMetrics = (Object.entries(usage) as [keyof UsageMetrics, UsageData][])
+      .filter(([m, d]) => d && !isAtLimit(m) && isNearLimit(m))
 
-    const atLimit = isAtLimit(metric)
-    const nearLimit = isNearLimit(metric)
-
-    if (!atLimit && !nearLimit) return null
-
-    const alertContent = getAlertContent(metric, data, atLimit, nearLimit)
-
-    return (
-      <Alert 
-        variant={alertContent.variant as any} 
-        className={`${className} ${atLimit ? 'border-destructive bg-destructive/5' : 'border-orange-500 bg-orange-50'}`}
-      >
-        <AlertTriangle className="h-4 w-4" />
-        <AlertDescription className="flex items-center justify-between">
-          <div className="flex-1">
-            <div className="font-medium">{alertContent.title}</div>
-            {!showCompact && (
-              <div className="text-sm mt-1">{alertContent.description}</div>
-            )}
-          </div>
-          <div className="flex items-center gap-2 ml-4">
-            <Link href="/settings?tab=billing">
-              <Button 
-                size="sm" 
-                variant={alertContent.actionVariant as any}
-                className="gap-1"
-              >
-                <TrendingUp className="h-3 w-3" />
-                {alertContent.actionText}
-              </Button>
-            </Link>
-            {onDismiss && (
-              <Button 
-                size="sm" 
-                variant="ghost" 
-                onClick={() => {
-                  setDismissed(true)
-                  onDismiss()
-                }}
-              >
-                <X className="h-3 w-3" />
-              </Button>
-            )}
-          </div>
-        </AlertDescription>
-      </Alert>
-    )
+    if (limitedMetrics.length > 0) {
+      [mainAlertMetric, mainAlertData] = limitedMetrics[0]
+      mainAlertIsAtLimit = true
+      metricsToShow = [...limitedMetrics.slice(1), ...warningMetrics]
+    } else if (warningMetrics.length > 0) {
+      [mainAlertMetric, mainAlertData] = warningMetrics[0]
+      mainAlertIsAtLimit = false
+      metricsToShow = warningMetrics.slice(1)
+    }
   }
 
-  // Check all metrics for limits
-  const metrics = Object.entries(usage) as [keyof UsageMetrics, typeof usage[keyof UsageMetrics]][]
-  const limitedMetrics = metrics.filter(([metric, data]) => data && isAtLimit(metric))
-  const warningMetrics = metrics.filter(([metric, data]) => data && !isAtLimit(metric) && isNearLimit(metric))
+  if (!mainAlertMetric || !mainAlertData) return null;
 
-  // Show the most critical alert first
-  const criticalMetrics = limitedMetrics.length > 0 ? limitedMetrics : warningMetrics
-  if (criticalMetrics.length === 0) return null
-
-  const [firstMetric, firstData] = criticalMetrics[0]
-  if (!firstData) return null
+  // Determine if the main alert is for a near limit scenario (only if not at limit)
+  const mainAlertIsNearLimit = !mainAlertIsAtLimit && isNearLimit(mainAlertMetric);
+  const alertContent = getAlertContent(mainAlertMetric, mainAlertData, mainAlertIsAtLimit, mainAlertIsNearLimit);
   
-  const atLimit = isAtLimit(firstMetric)
-  const alertContent = getAlertContent(firstMetric, firstData, atLimit, isNearLimit(firstMetric))
+  const otherApproachingLimits = metricsToShow
+    .filter(([m, d]) => m !== mainAlertMetric && d && isNearLimit(m) && !isAtLimit(m))
+    .slice(0, 1) // Show max 1 other approaching limits to match the image more closely
 
-  if (showCompact) {
-    return (
-      <Alert 
-        variant={alertContent.variant as any} 
-        className={`${className} ${atLimit ? 'border-destructive bg-destructive/5' : 'border-orange-500 bg-orange-50'}`}
-      >
-        <AlertTriangle className="h-4 w-4" />
-        <AlertDescription className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="font-medium">{alertContent.title}</span>
-            {criticalMetrics.length > 1 && (
-              <Badge variant="outline" className="text-xs">
-                +{criticalMetrics.length - 1} more
-              </Badge>
-            )}
-          </div>
-          <Link href="/settings?tab=billing">
-            <Button 
-              size="sm" 
-              variant={alertContent.actionVariant as any}
-              className="gap-1"
-            >
-              <Zap className="h-3 w-3" />
-              Upgrade
-            </Button>
-          </Link>
-        </AlertDescription>
-      </Alert>
-    )
-  }
+  const cardBgColor = mainAlertIsAtLimit ? "bg-pink-50" : "bg-amber-50"
+  const buttonColor = mainAlertIsAtLimit ? "danger" : "warning"
 
   return (
-    <Alert 
-      variant={alertContent.variant as any} 
-      className={`${className} ${atLimit ? 'border-destructive bg-destructive/5' : 'border-orange-500 bg-orange-50'}`}
+    <Card 
+      className={`${className} w-full rounded-lg ${cardBgColor} overflow-hidden`}
     >
-      <AlertTriangle className="h-4 w-4" />
-      <AlertDescription>
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <div className="font-medium mb-1">{alertContent.title}</div>
-            <div className="text-sm mb-3">{alertContent.description}</div>
-            
-            {criticalMetrics.length > 1 && (
-              <div className="text-sm">
-                <span className="font-medium">Other limits approaching:</span>
-                <ul className="mt-1 space-y-1">
-                  {criticalMetrics.slice(1, 4).map(([metric, data]) => {
-                    if (!data) return null
-                    return (
-                      <li key={metric} className="flex justify-between">
-                        <span className="capitalize">{metric.replace(/_/g, ' ')}</span>
-                        <span>{data.currentUsage}/{data.limit}</span>
-                      </li>
-                    )
-                  })}
-                  {criticalMetrics.length > 4 && (
-                    <li className="text-muted-foreground">
-                      +{criticalMetrics.length - 4} more limits
-                    </li>
-                  )}
-                </ul>
-              </div>
-            )}
+      <CardBody className="p-4 sm:p-5 relative"> {/* Added relative positioning */}
+        {/* Dismiss button positioned absolutely in top-right */}
+        {onDismiss && (
+          <Button 
+            isIconOnly 
+            variant="light" 
+            size="sm"
+            onClick={() => {
+              setDismissed(true)
+              onDismiss()
+            }}
+            className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 z-10"
+            aria-label="Dismiss alert"
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        )}
+        
+        <div className={`flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 ${onDismiss ? 'pr-8' : ''}`}>
+          {/* Left section: Texts */}
+          <div className="flex items-start gap-3 flex-1">
+            <div className="flex-1 min-w-0"> {/* Added min-w-0 for text truncation if needed */}
+              <h4 className="text-base font-semibold leading-tight text-gray-800 truncate">{alertContent.title}</h4>
+              <p className="text-sm text-gray-600 mt-0.5">{alertContent.description}</p>
+              
+              {otherApproachingLimits.length > 0 && (
+                <div className="mt-2.5">
+                  <p className="text-xs font-medium text-gray-500">Other limits approaching:</p>
+                  <ul className="mt-0.5 space-y-0">
+                    {otherApproachingLimits.map(([key, data]) => {
+                      const label = metricLabels[key] || key.replace(/_/g, " ");
+                      return (
+                        <li key={key} className="flex justify-between items-center text-xs text-gray-500">
+                          <span>{label.charAt(0).toUpperCase() + label.slice(1)}</span>
+                          <span className="font-semibold text-gray-700">{data.currentUsage}/{data.limit}</span>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
+              )}
+            </div>
           </div>
-          
-          <div className="flex items-center gap-2 ml-4">
-            <Link href="/settings?tab=billing">
+
+          {/* Right section: Action Button */}
+          <div className="flex flex-shrink-0 w-full sm:w-auto mt-3 sm:mt-0">
+            <Link href="/settings?tab=subscription" className="flex-grow sm:flex-grow-0">
               <Button 
-                variant={alertContent.actionVariant as any}
-                className="gap-2"
+                color={buttonColor}
+                variant="solid" 
+                size="md" 
+                radius="md"
+                className="w-full font-medium"
               >
-                <TrendingUp className="h-4 w-4" />
                 {alertContent.actionText}
               </Button>
             </Link>
-            {onDismiss && (
-              <Button 
-                size="sm" 
-                variant="ghost" 
-                onClick={() => {
-                  setDismissed(true)
-                  onDismiss()
-                }}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            )}
           </div>
         </div>
-      </AlertDescription>
-    </Alert>
+      </CardBody>
+    </Card>
   )
 }
 
@@ -259,4 +187,8 @@ export function MediaLimitAlert(props: Omit<UsageLimitAlertProps, 'metric'>) {
 
 export function ProductLimitAlert(props: Omit<UsageLimitAlertProps, 'metric'>) {
   return <UsageLimitAlert {...props} metric="products" />
+}
+
+export function TeamMemberLimitAlert(props: Omit<UsageLimitAlertProps, 'metric'>) {
+  return <UsageLimitAlert {...props} metric="team_members" />
 } 

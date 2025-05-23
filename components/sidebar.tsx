@@ -49,8 +49,21 @@ export function Sidebar() {
             <div className="flex flex-col h-full">
               <div className="p-4 border-b">
                 <div className="flex items-center justify-between">
-                  <Link href="/" className="font-semibold text-xl">
-                    Courtney AI
+                  <Link href="/" className="flex items-center space-x-2 font-semibold text-xl hover:opacity-80 transition-opacity">
+                    <div className="relative h-6 w-6 flex-shrink-0">
+                      <img
+                        src="/favicon.svg"
+                        alt="Courtney AI Logo"
+                        className="h-6 w-6"
+                      />
+                    </div>
+                    <div className="flex items-center h-6 max-w-20">
+                      <img
+                        src="/courtney-ai-wordmark.png"
+                        alt="Courtney AI"
+                        className="h-5 w-auto max-w-full object-contain"
+                      />
+                    </div>
                   </Link>
                   <Button variant="ghost" size="icon" onClick={() => setOpen(false)}>
                     <X className="h-5 w-5" />
@@ -132,8 +145,21 @@ export function Sidebar() {
             "flex items-center h-16 px-4 border-b",
             collapsed ? "justify-center" : "justify-between"
           )}>
-            {!collapsed && <Link href="/" className="font-semibold text-xl">
-              Courtney AI
+            {!collapsed && <Link href="/" className="flex items-center space-x-2 hover:opacity-80 transition-opacity">
+              <div className="relative h-6 w-6 flex-shrink-0">
+                <img
+                  src="/favicon.svg"
+                  alt="Courtney AI Logo"
+                  className="h-6 w-6"
+                />
+              </div>
+              <div className="flex items-center h-6 max-w-20">
+                <img
+                  src="/courtney-ai-wordmark.png"
+                  alt="Courtney AI"
+                  className="h-5 w-auto max-w-full object-contain"
+                />
+              </div>
             </Link>}
             <Button 
               variant="ghost" 

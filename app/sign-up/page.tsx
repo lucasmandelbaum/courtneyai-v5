@@ -87,13 +87,30 @@ export default function SignUp() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
+          className="w-full max-w-md"
         >
           <Card className="max-w-md w-full">
-            <CardBody className="gap-4 px-6 py-8 text-center">
-              <div className="mb-4">
-                <Mail className="w-12 h-12 mx-auto text-primary" />
+            <CardHeader className="flex flex-col items-center space-y-3 px-8 pt-8 pb-4">
+              <div className="flex flex-col items-center space-y-2 mb-3">
+                <div className="flex items-center justify-center h-10 w-10 flex-shrink-0">
+                  <img
+                    src="/favicon.svg"
+                    alt="Courtney AI Logo"
+                    className="h-10 w-10"
+                  />
+                </div>
+                <div className="flex items-center justify-center max-w-32 h-8">
+                  <img
+                    src="/courtney-ai-wordmark.png"
+                    alt="Courtney AI"
+                    className="w-auto max-w-full object-contain max-h-6"
+                  />
+                </div>
               </div>
-              <h1 className="text-2xl font-bold mb-2">Check Your Email</h1>
+              <Mail className="w-10 h-10 mx-auto text-primary mt-1" />
+            </CardHeader>
+            <CardBody className="gap-3 px-8 py-7 text-center">
+              <h1 className="text-xl font-bold mb-1">Check Your Email</h1>
               <p className="text-default-500">
                 We've sent a confirmation link to <strong>{email}</strong>
               </p>
@@ -130,14 +147,30 @@ export default function SignUp() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
+        className="w-full max-w-md"
       >
         <Card className="max-w-md w-full">
-          <CardHeader className="flex flex-col gap-1 px-6 pt-6">
-            <h1 className="text-2xl font-bold">Create Account</h1>
-            <p className="text-sm text-default-500">Sign up for a new account</p>
+          <CardHeader className="flex flex-col items-center space-y-3 px-8 pt-8 pb-4">
+            <div className="flex flex-col items-center space-y-2 mb-3">
+              <div className="flex items-center justify-center h-10 w-10 flex-shrink-0">
+                <img
+                  src="/favicon.svg"
+                  alt="Courtney AI Logo"
+                  className="h-10 w-10"
+                />
+              </div>
+              <div className="flex items-center justify-center max-w-32 h-8">
+                <img
+                  src="/courtney-ai-wordmark.png"
+                  alt="Courtney AI"
+                  className="w-auto max-w-full object-contain max-h-6"
+                />
+              </div>
+            </div>
+            <p className="text-sm text-default-500 text-center pt-1">Sign up for a new account</p>
           </CardHeader>
-          <CardBody className="gap-4 px-6 pb-6">
-            <form onSubmit={handleSignUp} className="flex flex-col gap-4">
+          <CardBody className="gap-3.5 px-8 pb-6">
+            <form onSubmit={handleSignUp} className="flex flex-col gap-3.5">
               <Input
                 type="email"
                 label="Email"

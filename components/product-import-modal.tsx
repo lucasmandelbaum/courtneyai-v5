@@ -1,11 +1,8 @@
 "use client"
 
-import { useState, ReactNode } from "react"
+import { useState, ReactNode, cloneElement, isValidElement } from "react"
 import { Plus } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { Button, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Input, useDisclosure } from "@heroui/react"
 import { useProducts } from "@/hooks/useProducts"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -15,10 +12,30 @@ interface ProductImportModalProps {
 }
 
 export function ProductImportModal({ children }: ProductImportModalProps) {
-  const [open, setOpen] = useState(false)
+  const { isOpen, onOpen, onClose, onOpenChange } = useDisclosure()
   const [isLoading, setIsLoading] = useState(false)
   const { createProduct } = useProducts()
   const router = useRouter()
+
+  const resetForm = () => {
+    setIsLoading(false)
+  }
+
+  const closeModal = () => {
+    if (!isLoading) {
+      onClose()
+      setTimeout(resetForm, 300) // Reset after animation completes
+    }
+  }
+
+  // Handle modal state changes (following ReelCreator pattern)
+  const handleOpenChange = (open: boolean) => {
+    if (open) {
+      onOpen()
+    } else {
+      closeModal()
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -36,7 +53,7 @@ export function ProductImportModal({ children }: ProductImportModalProps) {
         description: description || undefined
       })
 
-      setOpen(false)
+      closeModal() // Use closeModal instead of onOpenChange
       toast.success("Product created successfully")
       router.push(`/product/${product.id}`)
     } catch (error) {
@@ -48,48 +65,89 @@ export function ProductImportModal({ children }: ProductImportModalProps) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {children || (
-          <Button className="gap-2">
-            <Plus className="h-4 w-4" />
-            Add Product
-          </Button>
-        )}
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>Import Product</DialogTitle>
-          <DialogDescription>
-            Add a new product to your dashboard. Fill in the required details below.
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit}>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="name">Product Name</Label>
-              <Input id="name" name="name" placeholder="Enter product name" required />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="url">Product URL (Optional)</Label>
-              <Input id="url" name="url" type="url" placeholder="https://example.com/product" />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="description">Description (Optional)</Label>
-              <Input id="description" name="description" placeholder="Enter product description" />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="tags">Tags (Optional)</Label>
-              <Input id="tags" name="tags" placeholder="Enter tags separated by commas" />
-            </div>
+    <>
+      {children ? (
+        // Properly clone the children and add onPress prop if it's a valid React element
+        isValidElement(children) ? cloneElement(children, { onPress: onOpen } as any) : (
+          <div onClick={onOpen} className="cursor-pointer">
+            {children}
           </div>
-          <DialogFooter>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? "Creating..." : "Save & Open Product"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+        )
+      ) : (
+        <Button 
+          color="primary"
+          onPress={onOpen}
+        >
+          Add Product
+        </Button>
+      )}
+      
+      <Modal 
+        isOpen={isOpen} 
+        onOpenChange={handleOpenChange}
+        placement="center"
+        size="lg"
+      >
+        <ModalContent>
+          {(onCloseInternal) => (
+            <form onSubmit={handleSubmit}>
+              <ModalHeader className="flex flex-col gap-1">
+                Import Product
+                <p className="text-sm text-gray-600 font-normal">
+                  Add a new product to your dashboard. Fill in the required details below.
+                </p>
+              </ModalHeader>
+              <ModalBody>
+                <div className="space-y-4">
+                  <Input
+                    name="name"
+                    label="Product Name"
+                    placeholder="Enter product name"
+                    isRequired
+                    variant="bordered"
+                  />
+                  <Input
+                    name="url"
+                    label="Product URL (Optional)"
+                    placeholder="https://example.com/product"
+                    type="url"
+                    variant="bordered"
+                  />
+                  <Input
+                    name="description"
+                    label="Description (Optional)"
+                    placeholder="Enter product description"
+                    variant="bordered"
+                  />
+                  <Input
+                    name="tags"
+                    label="Tags (Optional)"
+                    placeholder="Enter tags separated by commas"
+                    variant="bordered"
+                  />
+                </div>
+              </ModalBody>
+              <ModalFooter>
+                <Button 
+                  color="danger" 
+                  variant="light" 
+                  onPress={closeModal}
+                  isDisabled={isLoading}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  color="primary" 
+                  type="submit" 
+                  isLoading={isLoading}
+                >
+                  {isLoading ? "Creating..." : "Save & Open Product"}
+                </Button>
+              </ModalFooter>
+            </form>
+          )}
+        </ModalContent>
+      </Modal>
+    </>
   )
 }

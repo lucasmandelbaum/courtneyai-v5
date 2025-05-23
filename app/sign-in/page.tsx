@@ -69,9 +69,24 @@ export default function SignIn() {
         className="w-full max-w-md"
       >
         <Card className="shadow-lg">
-          <CardHeader className="flex flex-col items-center space-y-2 px-8 pt-8 pb-0">
-            <h1 className="text-3xl font-bold text-gray-800">Sign In</h1>
-            <p className="text-md text-gray-600">Welcome back! Please sign in to your account.</p>
+          <CardHeader className="flex flex-col items-center space-y-3 px-8 pt-8 pb-4">
+            <div className="flex flex-col items-center space-y-2 mb-3">
+              <div className="flex items-center justify-center h-10 w-10 flex-shrink-0">
+                <img
+                  src="/favicon.svg"
+                  alt="Courtney AI Logo"
+                  className="h-10 w-10"
+                />
+              </div>
+              <div className="flex items-center justify-center max-w-32 h-8">
+                <img
+                  src="/courtney-ai-wordmark.png"
+                  alt="Courtney AI"
+                  className="w-auto max-w-full object-contain max-h-6"
+                />
+              </div>
+            </div>
+            <p className="text-sm text-gray-600 pt-1 text-center">Welcome back! Please sign in to your account.</p>
           </CardHeader>
           <CardBody className="px-8 py-6">
             {message && (
@@ -79,7 +94,7 @@ export default function SignIn() {
                 {message}
               </div>
             )}
-            <form onSubmit={handleSignIn} className="space-y-6">
+            <form onSubmit={handleSignIn} className="space-y-5">
               <Input
                 type="email"
                 name="email"

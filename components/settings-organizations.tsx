@@ -2,10 +2,9 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { Card, CardBody, CardHeader, Button, Chip, Divider, Skeleton } from "@heroui/react"
 import { createBrowserSupabaseClient } from "@/lib/supabase-browser"
-import { Building2, Users } from "lucide-react"
+import { Building2, Users, Settings, Crown, Shield, User, Plus } from "lucide-react"
 import { toast } from "sonner"
 
 interface Organization {
@@ -14,6 +13,7 @@ interface Organization {
   slug: string
   created_at: string
   role?: 'owner' | 'admin' | 'member'
+  member_count?: number
 }
 
 export function SettingsOrganizations() {
@@ -30,31 +30,47 @@ export function SettingsOrganizations() {
     try {
       setLoading(true)
 
-      // Get user's organization memberships with role priority
+      // Get user's organization memberships with organization details
       const { data: memberships, error: membershipError } = await supabase
         .from('organization_members')
         .select(`
           *,
-          organizations (*)
+          organizations (
+            id,
+            name,
+            slug,
+            created_at
+          )
         `)
-        .order('role', { ascending: false }) // 'owner' comes before 'member' alphabetically
+        .order('role', { ascending: false })
 
       if (membershipError) throw membershipError
 
-      // Transform the data to include role and deduplicate by organization
+      // Transform and deduplicate organizations
       const orgMap = new Map()
       memberships?.forEach(membership => {
-        const orgId = membership.organizations.id
-        // Only keep the first (highest privilege) role we encounter
-        if (!orgMap.has(orgId)) {
+        const org = membership.organizations as any
+        const orgId = org.id
+        if (!orgMap.has(orgId) || membership.role === 'owner') {
           orgMap.set(orgId, {
-            ...membership.organizations,
+            ...org,
             role: membership.role
           })
         }
       })
 
-      setOrganizations(Array.from(orgMap.values()))
+      const orgsWithCounts = await Promise.all(
+        Array.from(orgMap.values()).map(async (org) => {
+          const { count } = await supabase
+            .from('organization_members')
+            .select('*', { count: 'exact', head: true })
+            .eq('organization_id', org.id)
+          
+          return { ...org, member_count: count || 0 }
+        })
+      )
+
+      setOrganizations(orgsWithCounts)
     } catch (error) {
       console.error('Error loading organizations:', error)
       toast.error('Failed to load organizations')
@@ -63,72 +79,135 @@ export function SettingsOrganizations() {
     }
   }
 
+  const getRoleIcon = (role: string) => {
+    switch (role) {
+      case 'owner':
+        return <Crown className="h-3 w-3" />
+      case 'admin':
+        return <Shield className="h-3 w-3" />
+      default:
+        return <User className="h-3 w-3" />
+    }
+  }
+
+  const getRoleColor = (role: string) => {
+    switch (role) {
+      case 'owner':
+        return 'warning'
+      case 'admin':
+        return 'primary'
+      default:
+        return 'default'
+    }
+  }
+
   const handleManageMembers = (orgId: string) => {
     router.push(`/organization/${orgId}/members`)
   }
 
-  const handleViewOrganization = (orgId: string) => {
-    router.push(`/organization/${orgId}`)
-  }
-
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <Building2 className="h-5 w-5" />
-          <CardTitle>Organizations</CardTitle>
-        </div>
-        <CardDescription>Manage your organization memberships</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {loading ? (
-          <div className="flex justify-center py-4">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900" />
+    <div className="space-y-8">
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Building2 className="h-5 w-5 text-gray-600" />
+            <h2 className="text-xl font-semibold text-gray-800">Organizations</h2>
           </div>
-        ) : organizations.length === 0 ? (
-          <div className="text-center py-4 text-gray-500">
-            <p>You are not a member of any organizations.</p>
-            <Button
-              className="mt-2"
+          <Button
+            color="primary"
+            onClick={() => router.push('/organization-setup')}
+            startContent={<Plus className="h-4 w-4" />}
+          >
+            Create/Join Organization
+          </Button>
+        </div>
+        <Divider />
+        <p className="text-sm text-gray-600">Manage your organization memberships and teams</p>
+      </div>
+
+      {loading ? (
+        <div className="space-y-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Card key={i}>
+              <CardBody>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div>
+                      <Skeleton className="w-32 h-6 mb-2" />
+                      <Skeleton className="w-24 h-4" />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Skeleton className="w-20 h-8" />
+                    <Skeleton className="w-16 h-8" />
+                  </div>
+                </div>
+              </CardBody>
+            </Card>
+          ))}
+        </div>
+      ) : organizations.length === 0 ? (
+        <Card>
+          <CardBody className="text-center py-12">
+            <Building2 className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+            <h3 className="text-lg font-semibold text-gray-800 mb-2">No organizations found</h3>
+            <p className="text-gray-600 mb-6">You are not a member of any organizations.</p>
+            <Button 
+              color="primary"
               onClick={() => router.push('/organization-setup')}
+              startContent={<Plus className="h-4 w-4" />}
             >
               Create or Join Organization
             </Button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {organizations.map((org) => (
-              <div key={org.id} className="border rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-medium">{org.name}</h3>
-                    <p className="text-sm text-gray-500">Role: {org.role}</p>
+          </CardBody>
+        </Card>
+      ) : (
+        <div className="space-y-6">
+          {organizations.map((org) => (
+            <Card key={org.id} className="w-full">
+              {/* Organization Header */}
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-3">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-semibold text-lg text-gray-900">{org.name}</h3>
+                        <Chip 
+                          size="sm" 
+                          color={getRoleColor(org.role || 'member')}
+                          startContent={getRoleIcon(org.role || 'member')}
+                          variant="flat"
+                        >
+                          {org.role}
+                        </Chip>
+                      </div>
+                      <div className="flex items-center gap-4 text-sm text-gray-500">
+                        <span className="flex items-center gap-1">
+                          <Users className="h-3 w-3" />
+                          {org.member_count} member{org.member_count !== 1 ? 's' : ''}
+                        </span>
+                        <span>Created {new Date(org.created_at).toLocaleDateString()}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
+                  
+                  <div className="flex items-center gap-2">
                     {org.role === 'owner' && (
                       <Button
-                        variant="outline"
-                        size="sm"
+                        variant="flat"
                         onClick={() => handleManageMembers(org.id)}
+                        startContent={<Settings className="h-4 w-4" />}
                       >
-                        <Users className="h-4 w-4 mr-1" />
-                        Manage Members
+                        Manage
                       </Button>
                     )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleViewOrganization(org.id)}
-                    >
-                      View
-                    </Button>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+              </CardHeader>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
   )
 } 
