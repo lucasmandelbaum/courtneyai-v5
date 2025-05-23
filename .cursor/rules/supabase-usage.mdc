@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+When using Supabase MCP, use the Supabase project 'courtneyai-v5'. When integrating Supabase, always use proper authentication. Remember that linter errors may not be accurate when working on Supabase Edge function environments. Don't deploy Edge functions yourself, just edit locally and let me deploy them.
