@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { User } from "lucide-react"
+import { User, HelpCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { usePathname } from "next/navigation"
@@ -29,6 +29,16 @@ export function TopNav() {
           </div>
         </Link>
         <div className="ml-auto flex items-center space-x-2">
+          <Link href="/support">
+            <Button 
+              variant={pathname === "/support" ? "default" : "ghost"} 
+              size="sm"
+              className="transition-colors"
+            >
+              <HelpCircle className="h-4 w-4 mr-2" />
+              Support
+            </Button>
+          </Link>
           <Link href="/settings">
             <Button 
               variant={pathname === "/settings" ? "default" : "ghost"} 
