@@ -32,21 +32,19 @@ export function TopNav() {
           <Link href="/support">
             <Button 
               variant={pathname === "/support" ? "default" : "ghost"} 
-              size="sm"
+              size="icon"
               className="transition-colors"
             >
-              <HelpCircle className="h-4 w-4 mr-2" />
-              Support
+              <HelpCircle className="h-4 w-4" />
             </Button>
           </Link>
           <Link href="/settings">
             <Button 
               variant={pathname === "/settings" ? "default" : "ghost"} 
-              size="sm"
+              size="icon"
               className="transition-colors"
             >
-              <User className="h-4 w-4 mr-2" />
-              Account
+              <User className="h-4 w-4" />
             </Button>
           </Link>
         </div>
