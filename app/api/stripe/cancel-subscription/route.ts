@@ -4,7 +4,7 @@ import { cookies } from 'next/headers'
 import Stripe from 'stripe'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2023-10-16',
+  apiVersion: '2025-04-30.basil',
 })
 
 export async function POST(request: NextRequest) {
@@ -101,8 +101,7 @@ export async function POST(request: NextRequest) {
         id: cancelledSubscription.id,
         status: cancelledSubscription.status,
         cancel_at_period_end: cancelledSubscription.cancel_at_period_end,
-        canceled_at: cancelledSubscription.canceled_at,
-        current_period_end: cancelledSubscription.current_period_end
+        canceled_at: cancelledSubscription.canceled_at
       }
     })
 

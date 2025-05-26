@@ -157,7 +157,7 @@ export function MediaUploader({ productId, onMediaUploaded }: MediaUploaderProps
   return (
     <div className="space-y-4">
       {/* Usage Alert */}
-      <MediaLimitAlert showCompact />
+      <MediaLimitAlert />
       
       <Dialog open={isModalOpen} onOpenChange={handleOpen}>
         <DialogTrigger asChild>
