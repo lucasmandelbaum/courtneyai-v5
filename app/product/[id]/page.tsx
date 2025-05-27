@@ -1102,7 +1102,7 @@ export default function ProductPage() {
                                 <div className="relative">
                                   <div className="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center">
                                     <Sparkles className="h-6 w-6 text-primary-600" />
-                                  </div>
+                        </div>
                                   <div className="absolute inset-0 rounded-full border-2 border-primary-300 border-t-primary-600 animate-spin"></div>
                                 </div>
                               </div>

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { Play, Pause, Maximize, Minimize, Volume2, VolumeX, RotateCcw, Loader2, Spinner } from "lucide-react"
+import { Play, Pause, Volume2, VolumeX, RotateCcw, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { cn } from "@/lib/utils"
@@ -26,7 +26,6 @@ export function VideoPreview({ src, isLoading, status, progressDetails, progress
   const [duration, setDuration] = useState(0)
   const [volume, setVolume] = useState(1)
   const [isMuted, setIsMuted] = useState(false)
-  const [isFullscreen, setIsFullscreen] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -131,18 +130,6 @@ export function VideoPreview({ src, isLoading, status, progressDetails, progress
     }
   }
 
-  const toggleFullscreen = () => {
-    if (!containerRef.current) return
-
-    if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen()
-      setIsFullscreen(true)
-    } else {
-      document.exitFullscreen()
-      setIsFullscreen(false)
-    }
-  }
-
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60)
     const remainingSeconds = Math.floor(seconds % 60)
@@ -159,7 +146,7 @@ export function VideoPreview({ src, isLoading, status, progressDetails, progress
     }
   }
 
-  const getStatusMessage = (status: ReelStatus, details?: ReelStatus['progress_details']): string => {
+  const getStatusMessage = (status?: ReelStatus, details?: { message?: string; step?: number; total_steps?: number }): string => {
     if (!status) return 'Processing...';
     
     if (details?.message) {
@@ -220,7 +207,7 @@ export function VideoPreview({ src, isLoading, status, progressDetails, progress
       ref={containerRef}
       className={cn(
         "relative group bg-black rounded-lg overflow-hidden",
-        isFullscreen ? "fixed inset-0 z-50" : className
+        className
       )}
     >
       <video
@@ -284,15 +271,6 @@ export function VideoPreview({ src, isLoading, status, progressDetails, progress
                 />
               </div>
             </div>
-            
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-white hover:text-white hover:bg-white/20"
-              onClick={toggleFullscreen}
-            >
-              {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
-            </Button>
           </div>
         </div>
       </div>
