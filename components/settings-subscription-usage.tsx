@@ -111,9 +111,9 @@ export function SettingsSubscriptionUsage() {
           )
         `)
         .eq('organization_id', organizationId)
-        .single()
+        .maybeSingle()
 
-      if (error && error.code !== 'PGRST116') throw error
+      if (error) throw error
       setCurrentSubscription(data)
     } catch (error) {
       console.error('Error fetching subscription:', error)

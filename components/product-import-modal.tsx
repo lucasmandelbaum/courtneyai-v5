@@ -44,13 +44,11 @@ export function ProductImportModal({ children }: ProductImportModalProps) {
     const formData = new FormData(e.currentTarget)
     const name = formData.get("name") as string
     const url = formData.get("url") as string
-    const description = formData.get("description") as string
-    const tags = formData.get("tags") as string
 
     try {
       const product = await createProduct({
         name,
-        description: description || undefined
+        url: url || undefined
       })
 
       closeModal() // Use closeModal instead of onOpenChange
@@ -108,21 +106,9 @@ export function ProductImportModal({ children }: ProductImportModalProps) {
                   />
                   <Input
                     name="url"
-                    label="Product URL (Optional)"
+                    label="Product URL"
                     placeholder="https://example.com/product"
                     type="url"
-                    variant="bordered"
-                  />
-                  <Input
-                    name="description"
-                    label="Description (Optional)"
-                    placeholder="Enter product description"
-                    variant="bordered"
-                  />
-                  <Input
-                    name="tags"
-                    label="Tags (Optional)"
-                    placeholder="Enter tags separated by commas"
                     variant="bordered"
                   />
                 </div>

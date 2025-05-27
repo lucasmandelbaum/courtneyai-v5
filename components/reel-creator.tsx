@@ -28,7 +28,13 @@ import { useUsage } from "@/hooks/useUsage"
 import { VideoPreview } from "@/components/video-preview"
 import { toast } from "sonner"
 import { createBrowserSupabaseClient } from "@/lib/supabase-browser"
-import { ReelLimitAlert } from "@/components/usage-limit-alert"
+// import { ReelLimitAlert } from "@/components/usage-limit-alert" // Keep this import if other alerts are used, otherwise remove
+
+interface ImageDimensions {
+  width: number
+  height: number
+  aspect_ratio: number
+}
 
 interface ReelCreatorProps {
   productId: string;
@@ -291,8 +297,6 @@ export function ReelCreator({ productId, onReelGenerated }: ReelCreatorProps) {
 
   return (
     <div className="space-y-4">
-      <ReelLimitAlert showCompact />
-      
       <Button 
         color="primary"
         startContent={<Plus className="h-4 w-4" />}
@@ -396,13 +400,27 @@ export function ReelCreator({ productId, onReelGenerated }: ReelCreatorProps) {
                             className="w-full h-full object-cover"
                           />
                           <div className="absolute top-2 left-2">
-                            <Chip 
-                              size="sm" 
-                              variant="flat" 
-                              color="default"
-                            >
-                              Photo
-                            </Chip>
+                            <div className="flex gap-1">
+                              <Chip 
+                                size="sm" 
+                                variant="flat" 
+                                color="default"
+                              >
+                                Photo
+                              </Chip>
+                              {(() => {
+                                const dimensions = photo.dimensions as ImageDimensions | null;
+                                return dimensions && dimensions.width && dimensions.height ? (
+                                  <Chip 
+                                    size="sm" 
+                                    variant="flat" 
+                                    color="primary"
+                                  >
+                                    {`${dimensions.width}×${dimensions.height}`}
+                                  </Chip>
+                                ) : null;
+                              })()}
+                            </div>
                           </div>
                           {selectedPhotos.includes(photo.id) && (
                             <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">

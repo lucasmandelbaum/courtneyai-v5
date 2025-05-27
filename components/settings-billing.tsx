@@ -65,9 +65,9 @@ export function SettingsBilling({ organizationId }: BillingSettingsProps) {
           )
         `)
         .eq('organization_id', organizationId)
-        .single()
+        .maybeSingle()
 
-      if (error && error.code !== 'PGRST116') throw error // PGRST116 is "no rows returned"
+      if (error) throw error
       console.log('Current subscription data:', data)
       setCurrentSubscription(data)
     } catch (error) {

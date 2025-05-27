@@ -1549,7 +1549,7 @@ Do not include any explanations or text before or after the JSON.`
 3. CRITICAL VIDEO CONSTRAINT: For any video with a maxDuration value, NEVER assign a duration longer than that maxDuration
    - Example: If video has maxDuration: 4.2, maximum assignable duration is 4.2 seconds
    - Example: If video has maxDuration: null (image), no duration limit applies
-4. Use each media element at least once (you can reuse media if needed to fill time)
+4. Use the most relevant media for the content (you can reuse media if needed to fill time, but don't need to use all photos if there are too many)
 5. Align visuals with relevant spoken content when possible
 6. Return ONLY a JSON object with this structure:
 

@@ -77,10 +77,11 @@ export function useUsage() {
         `)
         .eq('organization_id', organizationId)
         .eq('status', 'active')
-        .single()
+        .maybeSingle()
 
-      if (subError && subError.code !== 'PGRST116') {
+      if (subError) {
         console.error('Subscription fetch error:', subError)
+        throw subError
       }
 
       // Set subscription data
@@ -92,7 +93,7 @@ export function useUsage() {
           currentPeriodStart: subscriptionData.current_period_start,
           currentPeriodEnd: subscriptionData.current_period_end,
           cancelAtPeriodEnd: subscriptionData.cancel_at_period_end || false,
-          features: subscriptionData.pricing_plans.features,
+          features: subscriptionData.pricing_plans.features as Record<string, number | boolean>,
           organizationId: organizationId
         })
       } else {
@@ -107,9 +108,9 @@ export function useUsage() {
           features: {
             products: 1,
             team_members: 1,
-            reels_per_month: 5,
-            scripts_per_month: 10,
-            media_uploads_per_month: 50
+            reels_per_month: 1,
+            scripts_per_month: 3,
+            media_uploads_per_month: 20
           },
           organizationId: organizationId
         })
@@ -162,9 +163,9 @@ export function useUsage() {
       const planFeatures = subscription?.features || {
         products: 1,
         team_members: 1,
-        reels_per_month: 5,
-        scripts_per_month: 10,
-        media_uploads_per_month: 50
+        reels_per_month: 1,
+        scripts_per_month: 3,
+        media_uploads_per_month: 20
       }
 
       const usageData: Partial<UsageMetrics> = {

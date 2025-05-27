@@ -62,6 +62,14 @@ export function UsageLimitAlert({
 
   if (dismissed) return null
 
+  // Helper function to check if we should hide team_members alert for free plan
+  const shouldHideTeamMembersAlert = (metric: keyof UsageMetrics, data: UsageData): boolean => {
+    return metric === 'team_members' && 
+           data.planName === 'Free Plan' && 
+           data.limit === 1 && 
+           data.currentUsage === 1
+  }
+
   let metricsToShow: [keyof UsageMetrics, UsageData][] = []
   let mainAlertMetric: keyof UsageMetrics | null = null
   let mainAlertData: UsageData | null = null
@@ -70,15 +78,19 @@ export function UsageLimitAlert({
   if (metric) {
     const data = usage[metric]
     if (data && (isAtLimit(metric) || isNearLimit(metric))) {
+      // Don't show team_members alert for free plan with 1 user
+      if (shouldHideTeamMembersAlert(metric, data)) {
+        return null
+      }
       mainAlertMetric = metric
       mainAlertData = data
       mainAlertIsAtLimit = isAtLimit(metric)
     }
   } else {
     const limitedMetrics = (Object.entries(usage) as [keyof UsageMetrics, UsageData][])
-      .filter(([m, d]) => d && isAtLimit(m))
+      .filter(([m, d]) => d && isAtLimit(m) && !shouldHideTeamMembersAlert(m, d))
     const warningMetrics = (Object.entries(usage) as [keyof UsageMetrics, UsageData][])
-      .filter(([m, d]) => d && !isAtLimit(m) && isNearLimit(m))
+      .filter(([m, d]) => d && !isAtLimit(m) && isNearLimit(m) && !shouldHideTeamMembersAlert(m, d))
 
     if (limitedMetrics.length > 0) {
       [mainAlertMetric, mainAlertData] = limitedMetrics[0]
@@ -190,5 +202,16 @@ export function ProductLimitAlert(props: Omit<UsageLimitAlertProps, 'metric'>) {
 }
 
 export function TeamMemberLimitAlert(props: Omit<UsageLimitAlertProps, 'metric'>) {
+  const { usage } = useUsage()
+  const teamMembersData = usage.team_members
+  
+  // Don't show team_members alert for free plan with 1 user (expected usage)
+  if (teamMembersData && 
+      teamMembersData.planName === 'Free Plan' && 
+      teamMembersData.limit === 1 && 
+      teamMembersData.currentUsage === 1) {
+    return null
+  }
+  
   return <UsageLimitAlert {...props} metric="team_members" />
 } 

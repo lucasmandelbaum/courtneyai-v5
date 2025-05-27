@@ -1,10 +1,9 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { ExternalLink, Copy, Play, Download, Trash, Wand2, AlertCircle, Edit, Plus, Trash2, Save, X, Grid, FileText, Clapperboard } from "lucide-react"
+import { ExternalLink, Copy, Play, Download, Trash, Wand2, AlertCircle, Edit, Plus, Trash2, Save, X, Grid, FileText, Clapperboard, Loader2, Sparkles } from "lucide-react"
 import { MediaUploader } from "@/components/media-uploader"
 import { VideoPreview } from "@/components/video-preview"
-import { ScriptGenerator } from "@/components/script-generator"
 import { ReelCreator } from "@/components/reel-creator"
 import { useProducts } from "@/hooks/useProducts"
 import { useMedia } from "@/hooks/useMedia"
@@ -15,6 +14,9 @@ import { useRouter, useParams } from "next/navigation"
 import { createBrowserSupabaseClient } from "@supabase/auth-helpers-nextjs"
 import { ErrorBoundary } from "react-error-boundary"
 import { ScriptEditor } from "@/components/script-editor"
+import { Button as ShadcnButton } from "@/components/ui/button"
+import type { Photo } from "@/hooks/useMedia"
+import { ReelLimitAlert, MediaLimitAlert, ScriptLimitAlert } from "@/components/usage-limit-alert"
 
 // HeroUI imports from main package (migration from NextUI to HeroUI)
 import { 
@@ -149,13 +151,15 @@ export default function ProductPage() {
   const [isSavingDescription, setIsSavingDescription] = useState(false)
   const [isSavingUrl, setIsSavingUrl] = useState(false)
   const [isGeneratingDescription, setIsGeneratingDescription] = useState(false)
+  const [isResizing, setIsResizing] = useState<Set<string>>(new Set()) // Track which images are being resized
+  const [selectedImage, setSelectedImage] = useState<Photo | null>(null)
   const router = useRouter()
   const [activeTab, setActiveTab] = useState("media")
   const { isOpen: isDeleteModalOpen, onOpen: onDeleteModalOpen, onClose: onDeleteModalClose } = useDisclosure();
+  const { isOpen: isImageModalOpen, onOpen: onImageModalOpen, onClose: onImageModalClose } = useDisclosure();
   const supabaseClient = createBrowserSupabaseClient(); // Initialize client once
 
   // State for new script creation UI
-  const [scriptCreationMode, setScriptCreationMode] = useState<null | 'ai' | 'manual'>(null);
   const { 
     isOpen: isManualScriptModalOpen, 
     onOpen: onManualScriptModalOpen, 
@@ -168,6 +172,9 @@ export default function ProductPage() {
   const [manualScriptContent, setManualScriptContent] = useState("");
   const [manualScriptCaption, setManualScriptCaption] = useState("");
   const [isSavingManualScript, setIsSavingManualScript] = useState(false);
+
+  // State for AI script generation
+  const [isGeneratingAIScript, setIsGeneratingAIScript] = useState(false);
 
   // Hydration safety
   useEffect(() => {
@@ -186,7 +193,7 @@ export default function ProductPage() {
   const product = products.find(p => p.id === id)
 
   // Fetch media
-  const { photos, videos, isLoading: isLoadingMedia, refetch: fetchMedia, deleteMedia, downloadFromUrl } = useMedia(id)
+  const { photos, videos, isLoading: isLoadingMedia, isExtracting, refetch: fetchMedia, deleteMedia, downloadFromUrl, reframeImage } = useMedia(id)
 
   // Fetch scripts
   const { scripts, isLoading: isLoadingScripts, refetch: refetchScripts, deleteScript } = useScripts(id)
@@ -259,12 +266,87 @@ export default function ProductPage() {
       setManualScriptTitle("")
       setManualScriptContent("")
       setManualScriptCaption("")
-      setScriptCreationMode(null) // Reset creation mode
     } catch (error) {
       console.error("Error saving manual script:", error)
       toast.error("Failed to save script. Check console for details.")
     } finally {
       setIsSavingManualScript(false)
+    }
+  }
+
+  // Handle AI script generation
+  const handleGenerateAIScript = async () => {
+    if (!product?.description) {
+      toast.error("Product description is required for AI script generation")
+      return
+    }
+
+    setIsGeneratingAIScript(true)
+    
+    try {
+      // Get the auth session
+      const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession()
+      
+      if (sessionError) {
+        throw new Error(`Authentication error: ${sessionError.message}`)
+      }
+      
+      if (!session?.access_token) {
+        throw new Error("Not authenticated")
+      }
+
+      // Call the Edge Function
+      const response = await fetch('https://yubxyvpitesasqwbihea.supabase.co/functions/v1/generate-script', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          productId: id
+        })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        
+        // Handle usage limit errors specifically
+        if (response.status === 429) {
+          toast.error(error.message || "Usage limit exceeded. Please upgrade your plan.")
+          return
+        }
+        
+        throw new Error(error.error || 'Failed to generate script')
+      }
+
+      const data = await response.json()
+      
+      // Refresh the scripts list
+      await refetchScripts()
+      
+      toast.success("Script generated successfully")
+      
+      // Show usage warning if near limit
+      if (data.usage && data.usage.limit !== -1) {
+        const newPercentage = (data.usage.currentUsage / data.usage.limit) * 100
+        if (newPercentage >= 80 && newPercentage < 100) {
+          toast.warning(`You've used ${data.usage.currentUsage}/${data.usage.limit} scripts this month. Consider upgrading your plan.`)
+        }
+      }
+      
+    } catch (error) {
+      console.error('Error generating script:', error)
+      
+      if (error instanceof Error && 
+          (error.message.includes('auth') || 
+           error.message.includes('token') || 
+           error.message.includes('Unauthorized'))) {
+        toast.error("Authentication error. Please sign in again.")
+      } else {
+        toast.error(error instanceof Error ? error.message : "Failed to create script")
+      }
+    } finally {
+      setIsGeneratingAIScript(false)
     }
   }
 
@@ -277,7 +359,6 @@ export default function ProductPage() {
       setManualScriptTitle("");
       setManualScriptContent("");
       setManualScriptCaption("");
-      setScriptCreationMode(null); // Important to allow re-selection
       // Also call the onClose from useDisclosure to update its internal state
       onManualScriptModalClose();
     }
@@ -421,6 +502,24 @@ export default function ProductPage() {
     }
   }
 
+  // Handle image resize
+  const handleResize = async (imageId: string) => {
+    try {
+      setIsResizing(prev => new Set(prev).add(imageId))
+      await reframeImage(imageId, 'portrait_16_9', 'TURBO')
+      toast.success("Image resized successfully")
+    } catch (error) {
+      console.error("Error resizing image:", error)
+      toast.error("Failed to resize image")
+    } finally {
+      setIsResizing(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(imageId)
+        return newSet
+      })
+    }
+  }
+
   // Header editing functions
   const handleSaveDescription = async () => {
     try {
@@ -516,6 +615,11 @@ export default function ProductPage() {
   const handleStartEditingUrl = () => {
     setEditingUrl(product?.url || "")
     setIsEditingUrl(true)
+  }
+
+  const handleImageClick = (photo: Photo) => {
+    setSelectedImage(photo)
+    onImageModalOpen()
   }
 
   // Show loading state until client-side hydration is complete
@@ -737,12 +841,65 @@ export default function ProductPage() {
                           <h2 className="text-xl font-semibold text-default-700">Media Library</h2>
                           <p className="text-sm text-default-500">Upload and manage product media</p>
                         </div>
-                        <div className="flex-shrink-0">
+                        <div className="flex gap-2 flex-shrink-0">
+                          <ShadcnButton
+                            variant="outline"
+                            className="gap-2"
+                            onClick={async () => {
+                              if (!product?.url) {
+                                toast.error("Please add a product URL first to extract images")
+                                return
+                              }
+                              try {
+                                await downloadFromUrl()
+                              } catch (error) {
+                                // Error is already handled in downloadFromUrl
+                              }
+                            }}
+                            disabled={!product?.url || isExtracting}
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                            {isExtracting ? "Extracting..." : "Extract from URL"}
+                          </ShadcnButton>
                           <MediaUploader productId={id} onMediaUploaded={fetchMedia} />
                         </div>
                       </div>
+
+                      {/* MediaLimitAlert for media uploads */}
+                      <MediaLimitAlert />
                       
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                        {isExtracting && (
+                          <Card className="col-span-full bg-primary/5 border-primary/20">
+                            <CardBody className="p-6 text-center">
+                              <div className="flex flex-col items-center gap-3">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                                <div>
+                                  <p className="text-primary font-medium">Extracting images from URL...</p>
+                                  <p className="text-sm text-default-500">This may take a few moments</p>
+                                </div>
+                              </div>
+                            </CardBody>
+                          </Card>
+                        )}
+                        {Array.from(isResizing).map((imageId) => (
+                          <Card key={`resizing-${imageId}`} className="aspect-square shadow-sm border border-secondary/30 bg-secondary/5">
+                            <CardBody className="p-0 overflow-hidden relative">
+                              <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-secondary/10 to-secondary/20">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-secondary mb-3"></div>
+                                <div className="text-center px-2">
+                                  <p className="text-secondary font-medium text-sm">Reframing Image</p>
+                                  <p className="text-xs text-default-500 mt-1">Creating new dimensions...</p>
+                                </div>
+                              </div>
+                            </CardBody>
+                            <div className="absolute top-2 left-2 z-10">
+                              <Chip size="sm" color="secondary" variant="flat" className="backdrop-blur-sm bg-secondary/80 text-white">
+                                Processing
+                              </Chip>
+                            </div>
+                          </Card>
+                        ))}
                         {[...photos, ...videos]
                           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
                           .slice((mediaPage - 1) * mediaPerPage, mediaPage * mediaPerPage)
@@ -758,7 +915,8 @@ export default function ProductPage() {
                                   <img
                                     src={item.file_path || "/placeholder.svg"}
                                     alt={item.file_name}
-                                    className="absolute inset-0 w-full h-full object-cover"
+                                    className="absolute inset-0 w-full h-full object-cover cursor-pointer"
+                                    onClick={() => handleImageClick(item as Photo)}
                                   />
                                 ) : (
                                   <VideoPreview 
@@ -768,9 +926,20 @@ export default function ProductPage() {
                                 )}
                                 </CardBody>
                                 <div className="absolute top-2 left-2 z-10">
-                                  <Chip size="sm" color="default" variant="flat" className="backdrop-blur-sm bg-black/30 text-white">
-                                    {isPhoto ? 'Photo' : 'Video'}
-                                  </Chip>
+                                  <div className="flex gap-2">
+                                    <Chip size="sm" color="default" variant="flat" className="backdrop-blur-sm bg-black/30 text-white">
+                                      {isPhoto ? 'Photo' : 'Video'}
+                                    </Chip>
+                                    {isPhoto && (() => {
+                                      const photo = item as any;
+                                      const dimensions = photo.dimensions;
+                                      return dimensions && dimensions.width && dimensions.height ? (
+                                        <Chip size="sm" color="primary" variant="flat" className="backdrop-blur-sm bg-primary/80 text-white">
+                                          {`${dimensions.width}×${dimensions.height}`}
+                                        </Chip>
+                                      ) : null;
+                                    })()}
+                                  </div>
                                 </div>
                                 <div className="absolute inset-x-0 bottom-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-t from-black/70 to-transparent p-2 pt-8 z-10">
                                   <div className="flex justify-end gap-2">
@@ -785,6 +954,21 @@ export default function ProductPage() {
                                         <Download className="h-4 w-4" />
                                       </Button>
                                     </Tooltip>
+                                    {isPhoto && (
+                                      <Tooltip content="Resize">
+                                        <Button
+                                          isIconOnly
+                                          size="sm"
+                                          variant="light"
+                                          className="text-white hover:bg-white/20"
+                                          onPress={() => handleResize(item.id)}
+                                          isLoading={isResizing.has(item.id)}
+                                          isDisabled={isResizing.has(item.id)}
+                                        >
+                                          <Wand2 className="h-4 w-4" />
+                                        </Button>
+                                      </Tooltip>
+                                    )}
                                     <Tooltip content="Delete">
                                       <Button
                                         isIconOnly
@@ -802,7 +986,7 @@ export default function ProductPage() {
                               </Card>
                             )
                           })}
-                        {(photos.length === 0 && videos.length === 0) && (
+                        {(photos.length === 0 && videos.length === 0 && !isExtracting) && (
                           <Card className="col-span-full bg-default-50">
                             <CardBody className="p-6 text-center">
                               <p className="text-default-500">No media uploaded yet</p>
@@ -874,23 +1058,18 @@ export default function ProductPage() {
                               <Button 
                                 color="primary"
                                 variant="solid"
-                                startContent={<Plus className="h-5 w-5" />}
+                                startContent={isGeneratingAIScript ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5" />}
+                                isDisabled={isGeneratingAIScript}
                               >
-                                New Script
+                                {isGeneratingAIScript ? "Generating..." : "New Script"}
                               </Button>
                             </DropdownTrigger>
                             <DropdownMenu 
                               aria-label="New Script Options"
                               onAction={(key) => {
                                 if (key === "ai") {
-                                  setScriptCreationMode("ai");
-                                  // Scroll to the script generator section
-                                  const scriptGeneratorElement = document.getElementById('script-generator-component');
-                                  if (scriptGeneratorElement) {
-                                    scriptGeneratorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                  }
+                                  handleGenerateAIScript();
                                 } else if (key === "manual") {
-                                  setScriptCreationMode("manual");
                                   onManualScriptModalOpen();
                                 }
                               }}
@@ -898,19 +1077,65 @@ export default function ProductPage() {
                               <DropdownItem key="manual" startContent={<Edit className="h-4 w-4" />}>
                                 Manual Entry
                               </DropdownItem>
-                              <DropdownItem key="ai" startContent={<Wand2 className="h-4 w-4" />}>
-                                Generate with AI
+                              <DropdownItem 
+                                key="ai" 
+                                startContent={isGeneratingAIScript ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                                isDisabled={isGeneratingAIScript || !product?.description}
+                                className={isGeneratingAIScript ? "opacity-50" : ""}
+                              >
+                                {isGeneratingAIScript ? "Generating..." : "Generate with AI"}
                               </DropdownItem>
                             </DropdownMenu>
                           </Dropdown>
                         </div>
                       </div>
+
+                      {/* ScriptLimitAlert for script generation */}
+                      <ScriptLimitAlert />
                       
-                      {scriptCreationMode === 'ai' && (
-                        <div id="script-generator-component" className="bg-content2 rounded-lg p-4">
-                           <h3 className="text-lg font-semibold text-default-700 mb-3">Generate Script with AI</h3>
-                          <ScriptGenerator productId={id} product={product} onScriptCreated={() => { refetchScripts(); setScriptCreationMode(null); }} />
-                        </div>
+                      {/* Show loading state when generating AI script */}
+                      {isGeneratingAIScript && (
+                        <Card className="bg-primary-50 border-primary-200">
+                          <CardBody className="p-6">
+                            <div className="flex items-center gap-4">
+                              <div className="flex-shrink-0">
+                                <div className="relative">
+                                  <div className="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center">
+                                    <Sparkles className="h-6 w-6 text-primary-600" />
+                                  </div>
+                                  <div className="absolute inset-0 rounded-full border-2 border-primary-300 border-t-primary-600 animate-spin"></div>
+                                </div>
+                              </div>
+                              <div className="flex-1">
+                                <h3 className="text-lg font-semibold text-primary-800 mb-1">
+                                  Generating AI Script...
+                                </h3>
+                                <p className="text-sm text-primary-700">
+                                  Our AI is analyzing your product description and creating a compelling script. This usually takes a few seconds.
+                                </p>
+                              </div>
+                            </div>
+                          </CardBody>
+                        </Card>
+                      )}
+                      
+                      {/* Show message when no product description for AI generation */}
+                      {!product?.description && !isGeneratingAIScript && (
+                        <Card className="bg-warning-50 border-warning-200">
+                          <CardBody className="p-4">
+                            <div className="flex items-start gap-3">
+                              <AlertCircle className="h-5 w-5 text-warning-600 mt-0.5 flex-shrink-0" />
+                              <div>
+                                <p className="text-sm font-medium text-warning-800">
+                                  Product description required for AI script generation
+                                </p>
+                                <p className="text-xs text-warning-700 mt-1">
+                                  Add a product description above to enable AI-powered script generation. You can still create scripts manually.
+                                </p>
+                              </div>
+                            </div>
+                          </CardBody>
+                        </Card>
                       )}
                       
                       <div className="space-y-4">
@@ -934,7 +1159,7 @@ export default function ProductPage() {
                                   <ScriptEditor
                                     scriptId={script.id}
                                     productId={id}
-                                    initialTitle={script.title}
+                                    initialTitle={script.title || ""}
                                     initialContent={script.content}
                                     initialCaption={script.caption || ""}
                                     onScriptEdited={() => {
@@ -1054,6 +1279,9 @@ export default function ProductPage() {
                           />
                         </div>
                       </div>
+
+                      {/* Moved ReelLimitAlert here */}
+                      <ReelLimitAlert />
                       
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                         {reels
@@ -1061,7 +1289,7 @@ export default function ProductPage() {
                           .map((reel) => (
                           <Card 
                             key={reel.id} 
-                            className="group aspect-[9/16] shadow-sm overflow-hidden"
+                            className="group aspect-[9/16] overflow-hidden"
                           >
                             <CardBody className="p-0 relative"> {/* Ensure CardBody is relative for absolute positioning of children */}
                               {reel.status === "completed" && reel.storage_path ? (
@@ -1182,6 +1410,70 @@ export default function ProductPage() {
                   </Tab>
                 </Tabs>
               </div>
+
+              {/* Image Modal */}
+              <Modal 
+                isOpen={isImageModalOpen} 
+                onClose={onImageModalClose}
+                backdrop="blur"
+                classNames={{
+                  base: "bg-transparent shadow-none",
+                  backdrop: "bg-black/50"
+                }}
+              >
+                <ModalContent className="bg-transparent shadow-none w-fit max-w-[90vw] max-h-[90vh]">
+                  {(onClose) => (
+                    <>
+                      <ModalBody className="p-0">
+                        {selectedImage && (
+                          <div className="relative">
+                            <Image
+                              src={selectedImage.file_path}
+                              alt={selectedImage.file_name}
+                              className="max-h-[90vh] w-auto"
+                              classNames={{
+                                img: "object-contain",
+                                wrapper: "w-auto"
+                              }}
+                            />
+                            <div className="absolute top-4 right-4 z-10">
+                              <Button
+                                isIconOnly
+                                variant="flat"
+                                color="default"
+                                className="bg-black/20 backdrop-blur-sm text-white hover:bg-black/40"
+                                onPress={onClose}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                            {selectedImage.description && (
+                              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6 rounded-b-lg">
+                                <p className="text-white text-sm leading-relaxed">
+                                  {selectedImage.description}
+                                </p>
+                                {(() => {
+                                  const dimensions = (selectedImage as any).dimensions;
+                                  return dimensions && dimensions.width && dimensions.height ? (
+                                    <div className="flex gap-2 mt-2">
+                                      <Chip size="sm" color="primary" variant="flat" className="bg-primary/80 text-white">
+                                        {`${dimensions.width}×${dimensions.height}`}
+                                      </Chip>
+                                      <Chip size="sm" color="secondary" variant="flat" className="bg-secondary/80 text-white">
+                                        {`${dimensions.aspect_ratio}:1`}
+                                      </Chip>
+                                    </div>
+                                  ) : null;
+                                })()}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </ModalBody>
+                    </>
+                  )}
+                </ModalContent>
+              </Modal>
 
               {/* Delete Product Modal */}
               <Modal isOpen={isDeleteModalOpen} onClose={onDeleteModalClose}>

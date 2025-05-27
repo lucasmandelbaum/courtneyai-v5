@@ -62,7 +62,7 @@ export function useProducts() {
     }
   }, [router])
 
-  const createProduct = useCallback(async (data: { name: string; description?: string }) => {
+  const createProduct = useCallback(async (data: { name: string; description?: string; url?: string }) => {
     try {
       const supabase = createBrowserSupabaseClient()
       const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -78,6 +78,7 @@ export function useProducts() {
         .insert({
           name: data.name,
           description: data.description,
+          url: data.url,
           user_id: user.id
         })
         .select()

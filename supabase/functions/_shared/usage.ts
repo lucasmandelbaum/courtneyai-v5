@@ -79,9 +79,9 @@ async function getUserOrganization(supabaseClient: any, userId: string): Promise
         planLimits: {
           products: 1,
           team_members: 1,
-          reels_per_month: 5,
-          scripts_per_month: 10,
-          media_uploads_per_month: 50
+          reels_per_month: 1,
+          scripts_per_month: 3,
+          media_uploads_per_month: 20
         },
         planName: 'Free Plan',
       }

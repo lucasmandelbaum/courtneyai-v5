@@ -8,6 +8,12 @@ interface ExtractImagesRequest {
   productId: string
 }
 
+interface ImageDimensions {
+  width: number
+  height: number
+  aspect_ratio: number
+}
+
 interface LogEvent {
   timestamp: string
   level: 'info' | 'warn' | 'error'
@@ -18,6 +24,72 @@ interface LogEvent {
 
 function logEvent(event: LogEvent) {
   console.log(JSON.stringify(event))
+}
+
+async function getImageDimensions(imageBlob: Blob): Promise<ImageDimensions | null> {
+  try {
+    const arrayBuffer = await imageBlob.arrayBuffer()
+    const uint8Array = new Uint8Array(arrayBuffer)
+    
+    // Check for JPEG
+    if (uint8Array[0] === 0xFF && uint8Array[1] === 0xD8) {
+      for (let i = 2; i < uint8Array.length - 1; i++) {
+        if (uint8Array[i] === 0xFF && (uint8Array[i + 1] === 0xC0 || uint8Array[i + 1] === 0xC2)) {
+          const height = (uint8Array[i + 5] << 8) | uint8Array[i + 6]
+          const width = (uint8Array[i + 7] << 8) | uint8Array[i + 8]
+          return {
+            width,
+            height,
+            aspect_ratio: parseFloat((width / height).toFixed(2))
+          }
+        }
+      }
+    }
+    
+    // Check for PNG
+    if (uint8Array[0] === 0x89 && uint8Array[1] === 0x50 && uint8Array[2] === 0x4E && uint8Array[3] === 0x47) {
+      const width = (uint8Array[16] << 24) | (uint8Array[17] << 16) | (uint8Array[18] << 8) | uint8Array[19]
+      const height = (uint8Array[20] << 24) | (uint8Array[21] << 16) | (uint8Array[22] << 8) | uint8Array[23]
+      return {
+        width,
+        height,
+        aspect_ratio: parseFloat((width / height).toFixed(2))
+      }
+    }
+    
+    // Check for WebP
+    if (uint8Array[0] === 0x52 && uint8Array[1] === 0x49 && uint8Array[2] === 0x46 && uint8Array[3] === 0x46 &&
+        uint8Array[8] === 0x57 && uint8Array[9] === 0x45 && uint8Array[10] === 0x42 && uint8Array[11] === 0x50) {
+      
+      // VP8 format
+      if (uint8Array[12] === 0x56 && uint8Array[13] === 0x50 && uint8Array[14] === 0x38 && uint8Array[15] === 0x20) {
+        const width = ((uint8Array[26] | (uint8Array[27] << 8)) & 0x3fff) + 1
+        const height = ((uint8Array[28] | (uint8Array[29] << 8)) & 0x3fff) + 1
+        return {
+          width,
+          height,
+          aspect_ratio: parseFloat((width / height).toFixed(2))
+        }
+      }
+      
+      // VP8L format
+      if (uint8Array[12] === 0x56 && uint8Array[13] === 0x50 && uint8Array[14] === 0x38 && uint8Array[15] === 0x4C) {
+        const bits = (uint8Array[21] << 16) | (uint8Array[22] << 8) | uint8Array[23]
+        const width = (bits & 0x3FFF) + 1
+        const height = ((bits >> 14) & 0x3FFF) + 1
+        return {
+          width,
+          height,
+          aspect_ratio: parseFloat((width / height).toFixed(2))
+        }
+      }
+    }
+    
+    return null
+  } catch (error) {
+    console.error('Error extracting image dimensions:', error)
+    return null
+  }
 }
 
 async function analyzeImage(imageUrl: string, falApiKey: string) {
@@ -334,6 +406,31 @@ serve(async (req) => {
           .from('media')
           .getPublicUrl(fileName)
 
+        // Extract image dimensions
+        let dimensions: ImageDimensions | null = null
+        try {
+          dimensions = await getImageDimensions(image.blob)
+          logEvent({
+            timestamp: new Date().toISOString(),
+            level: 'info',
+            event: 'dimensions_extracted',
+            metadata: {
+              url: publicUrl,
+              dimensions: dimensions ? `${dimensions.width}x${dimensions.height}` : 'failed'
+            }
+          })
+        } catch (dimensionError) {
+          logEvent({
+            timestamp: new Date().toISOString(),
+            level: 'warn',
+            event: 'dimension_extraction_failed',
+            metadata: {
+              url: publicUrl,
+              error: dimensionError instanceof Error ? dimensionError.message : 'Unknown error'
+            }
+          })
+        }
+
         // Analyze the image
         let imageAnalysis = null
         try {
@@ -370,7 +467,8 @@ serve(async (req) => {
             file_name: `product_image_${processedImages.length + 1}.${image.fileExt}`,
             user_id: user.id,
             description: imageAnalysis?.description,
-            ai_analysis_id: imageAnalysis?.request_id
+            ai_analysis_id: imageAnalysis?.request_id,
+            dimensions: dimensions
           })
           .select()
           .single()
@@ -384,7 +482,8 @@ serve(async (req) => {
         processedImages.push({
           id: photoData.id,
           file_path: publicUrl,
-          description: imageAnalysis?.description
+          description: imageAnalysis?.description,
+          dimensions: dimensions
         })
 
       } catch (error) {
