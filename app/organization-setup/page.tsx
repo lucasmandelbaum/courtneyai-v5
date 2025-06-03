@@ -59,6 +59,8 @@ export default function OrganizationSetup() {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)/g, '')
 
+      console.log('Creating organization:', { name, slug })
+
       // Get current user first to ensure we're authenticated
       const { data: { user }, error: userError } = await supabase.auth.getUser()
       if (userError) {
@@ -67,6 +69,8 @@ export default function OrganizationSetup() {
       if (!user) {
         throw new Error('No authenticated user found')
       }
+
+      console.log('User authenticated:', user.id)
 
       // Create organization
       const { data: orgData, error: orgError } = await supabase
@@ -86,6 +90,8 @@ export default function OrganizationSetup() {
         throw new Error('Failed to create organization')
       }
 
+      console.log('Organization created:', orgData.id)
+
       // Add user as owner
       const { error: memberError } = await supabase
         .from('organization_members')
@@ -96,6 +102,7 @@ export default function OrganizationSetup() {
         })
 
       if (memberError) {
+        console.error('Failed to add user as owner:', memberError)
         // Cleanup the created organization if member creation fails
         await supabase
           .from('organizations')
@@ -103,6 +110,26 @@ export default function OrganizationSetup() {
           .eq('id', orgData.id)
         throw memberError
       }
+
+      console.log('User added as owner, verifying membership...')
+
+      // Wait a moment and verify the membership was created successfully
+      // This helps avoid race condition with middleware
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      const { data: verifyMember, error: verifyError } = await supabase
+        .from('organization_members')
+        .select('organization_id, role')
+        .eq('user_id', user.id)
+        .eq('organization_id', orgData.id)
+        .single()
+
+      if (verifyError || !verifyMember) {
+        console.error('Failed to verify membership:', verifyError)
+        throw new Error('Organization created but membership verification failed')
+      }
+
+      console.log('Membership verified, redirecting to dashboard...')
 
       // Redirect to home
       router.replace('/')
@@ -129,11 +156,15 @@ export default function OrganizationSetup() {
       const formData = new FormData(e.currentTarget as HTMLFormElement)
       const code = String(formData.get('code'))
 
+      console.log('Joining organization with code:', code)
+
       // Get current user
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) {
         throw new Error('You must be logged in')
       }
+
+      console.log('User authenticated:', session.user.id)
 
       const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/invite-member/use`, {
         method: 'POST',
@@ -149,6 +180,28 @@ export default function OrganizationSetup() {
       if (!response.ok) {
         throw new Error(result.error)
       }
+
+      console.log('Successfully joined organization, verifying membership...')
+
+      // Wait a moment and verify the membership was created successfully
+      // This helps avoid race condition with middleware
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      const { data: verifyMember, error: verifyError } = await supabase
+        .from('organization_members')
+        .select('organization_id, role')
+        .eq('user_id', session.user.id)
+        .single()
+
+      if (verifyError || !verifyMember) {
+        console.error('Failed to verify membership after joining:', verifyError)
+        throw new Error('Joined organization but membership verification failed')
+      }
+
+      console.log('Membership verified, redirecting to dashboard...', {
+        organizationId: verifyMember.organization_id,
+        role: verifyMember.role
+      })
 
       // Redirect to home
       router.replace('/')

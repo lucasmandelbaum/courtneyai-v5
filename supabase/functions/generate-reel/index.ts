@@ -403,6 +403,23 @@ Deno.serve(async (req: Request) => {
       plan: usageCheck.planName
     });
 
+    // Increment usage IMMEDIATELY to prevent concurrent abuse
+    console.log('Incrementing reels usage for user:', user.id);
+    const usageIncremented = await incrementUsage(supabaseClient, user.id, 'reels_per_month', 1);
+    
+    if (!usageIncremented) {
+      console.error('Failed to increment usage metrics for user:', user.id);
+      return new Response(
+        JSON.stringify({ error: 'Failed to process usage tracking' }),
+        { 
+          status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    console.log('Usage incremented successfully for user:', user.id);
+
     // Create user-context client for RLS
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
@@ -696,15 +713,6 @@ async function startVideoGeneration(
     await processCompletedRender(supabaseUser, reel, render);
 
     await updateReelStatus(supabaseUser, reel.id, REEL_STATUS.COMPLETED, 100);
-
-    // Increment usage AFTER successful completion
-    console.log('Incrementing reels usage for user:', reel.user_id);
-    const usageIncremented = await incrementUsage(supabaseUser, reel.user_id, 'reels_per_month', 1);
-    
-    if (!usageIncremented) {
-      console.warn('Failed to increment usage metrics for user:', reel.user_id);
-      // Don't fail the request, just log the warning
-    }
 
     log('info', 'Reel generation completed successfully', reel.id, {
       total_duration_ms: Date.now() - startTime
