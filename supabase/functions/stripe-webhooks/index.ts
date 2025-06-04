@@ -3,7 +3,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts'
-import Stripe from 'https://esm.sh/stripe@12.5.0?dts'
+import Stripe from 'https://esm.sh/stripe@14?target=denonext'
 
 // Helper function for structured logging
 function log(level: string, message: string, details: any = {}) {
@@ -50,9 +50,11 @@ serve(async (req) => {
 
     // Initialize Stripe with the secret key
     const stripe = new Stripe(stripeSecretKey, {
-      apiVersion: '2023-10-16',
       httpClient: Stripe.createFetchHttpClient(),
     })
+
+    // This is needed in order to use the Web Crypto API in Deno
+    const cryptoProvider = Stripe.createSubtleCryptoProvider()
 
     // Create Supabase client with service role for operations that need to bypass RLS
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
@@ -71,10 +73,16 @@ serve(async (req) => {
       )
     }
 
-    // Verify the webhook signature
+    // Verify the webhook signature using the async method
     let event
     try {
-      event = stripe.webhooks.constructEvent(body, signature, stripeWebhookSecret)
+      event = await stripe.webhooks.constructEventAsync(
+        body,
+        signature,
+        stripeWebhookSecret,
+        undefined,
+        cryptoProvider
+      )
     } catch (err) {
       log('error', 'Invalid Stripe webhook', { 
         error: err instanceof Error ? err.message : 'Unknown error' 

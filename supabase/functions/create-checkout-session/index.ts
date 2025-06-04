@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import Stripe from 'https://esm.sh/stripe@12.18.0?target=deno'
+import Stripe from 'https://esm.sh/stripe@14?target=denonext'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -68,7 +68,6 @@ Deno.serve(async (req: Request) => {
 
     // Initialize Stripe
     const stripe = new Stripe(stripeKey, {
-      apiVersion: '2023-10-16',
       httpClient: Stripe.createFetchHttpClient(),
     })
 
@@ -140,6 +139,7 @@ Deno.serve(async (req: Request) => {
     })
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
+      payment_method_types: ['card'],
       line_items: [{
         price: priceId,
         quantity: 1
