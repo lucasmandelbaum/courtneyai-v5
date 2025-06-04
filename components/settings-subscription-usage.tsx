@@ -276,59 +276,34 @@ export function SettingsSubscriptionUsage() {
         <Card>
           <CardBody className="space-y-6">
             {/* Subscription Status */}
-            <div className="grid md:grid-cols-2 gap-6">
-              <div className="space-y-3">
-                <h3 className="font-semibold text-gray-800">Subscription Details</h3>
-                {subscription ? (
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="font-medium text-gray-600">Plan:</span>
-                      <span className="text-gray-900">{subscription.planName}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium text-gray-600">Status:</span>
-                      <span className="capitalize text-gray-900">{subscription.status}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium text-gray-600">Billing Period:</span>
-                      <span className="text-sm text-gray-900">
-                        {new Date(subscription.currentPeriodStart).toLocaleDateString()} - {' '}
-                        {new Date(subscription.currentPeriodEnd).toLocaleDateString()}
-                      </span>
-                    </div>
-                    {subscription.cancelAtPeriodEnd && (
-                      <div className="text-sm text-orange-600 mt-2 p-3 bg-orange-50 rounded-lg border border-orange-200">
-                        Your subscription will be cancelled at the end of the current billing period.
-                      </div>
-                    )}
+            <div className="space-y-3">
+              <h3 className="font-semibold text-gray-800">Subscription Details</h3>
+              {subscription ? (
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-600">Plan:</span>
+                    <span className="text-gray-900">{subscription.planName}</span>
                   </div>
-                ) : (
-                  <p className="text-gray-500">No active subscription</p>
-                )}
-              </div>
-
-              {/* Quick Actions */}
-              <div className="space-y-3">
-                <h3 className="font-semibold text-gray-800">Quick Actions</h3>
-                <div className="flex flex-col gap-2">
-                  {canCancelSubscription() && (
-                    <Button
-                      color="danger"
-                      onClick={onOpen}
-                      startContent={<X className="h-4 w-4" />}
-                    >
-                      Cancel Subscription
-                    </Button>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-600">Status:</span>
+                    <span className="capitalize text-gray-900">{subscription.status}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-600">Billing Period:</span>
+                    <span className="text-sm text-gray-900">
+                      {new Date(subscription.currentPeriodStart).toLocaleDateString()} - {' '}
+                      {new Date(subscription.currentPeriodEnd).toLocaleDateString()}
+                    </span>
+                  </div>
+                  {subscription.cancelAtPeriodEnd && (
+                    <div className="text-sm text-orange-600 mt-2 p-3 bg-orange-50 rounded-lg border border-orange-200">
+                      Your subscription will be cancelled at the end of the current billing period.
+                    </div>
                   )}
-                  <Button
-                    color="primary"
-                    onClick={() => window.open('/billing-portal', '_blank')}
-                    startContent={<Users className="h-4 w-4" />}
-                  >
-                    Billing Portal
-                  </Button>
                 </div>
-              </div>
+              ) : (
+                <p className="text-gray-500">No active subscription</p>
+              )}
             </div>
 
             {/* Usage Metrics */}

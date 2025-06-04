@@ -1,12 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useState, useEffect, useRef } from "react"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { createBrowserSupabaseClient } from "@/lib/supabase-browser"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
-import { Building2, ArrowLeft, Users } from "lucide-react"
+import { Building2, ArrowLeft, Users, CheckCircle } from "lucide-react"
 import { SettingsBilling } from "@/components/settings-billing"
 
 interface Organization {
@@ -21,13 +21,57 @@ interface Organization {
 export default function OrganizationPage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [organization, setOrganization] = useState<Organization | null>(null)
   const [loading, setLoading] = useState(true)
+  const [checkingPayment, setCheckingPayment] = useState(false)
+  const [subscriptionRefreshKey, setSubscriptionRefreshKey] = useState(0)
   const supabase = createBrowserSupabaseClient()
 
   useEffect(() => {
     loadOrganization()
   }, [])
+
+  useEffect(() => {
+    // Check if user returned from successful Stripe checkout
+    const sessionId = searchParams.get('session_id')
+    if (sessionId && organization) {
+      handleCheckoutSuccess(sessionId)
+    }
+  }, [organization, searchParams])
+
+  const handleCheckoutSuccess = async (sessionId: string) => {
+    try {
+      setCheckingPayment(true)
+      
+      // Show immediate success feedback
+      toast.success('Payment successful! Your subscription is now active.', {
+        icon: <CheckCircle className="h-4 w-4" />,
+        duration: 5000
+      })
+
+      // Wait a moment for webhook processing, then refresh subscription data
+      setTimeout(() => {
+        setSubscriptionRefreshKey(prev => prev + 1)
+      }, 2000)
+
+      // Clean up the URL by removing the session_id parameter
+      const url = new URL(window.location.href)
+      url.searchParams.delete('session_id')
+      window.history.replaceState({}, '', url.pathname)
+      
+    } catch (error) {
+      console.error('Error handling checkout success:', error)
+      toast.error('Payment was processed but there was an issue updating your account. Please contact support if needed.')
+    } finally {
+      setCheckingPayment(false)
+    }
+  }
+
+  const handleSubscriptionUpdate = () => {
+    // This will be called when subscription data is refreshed
+    // We can use this to trigger any additional UI updates if needed
+  }
 
   const loadOrganization = async () => {
     try {
@@ -41,11 +85,18 @@ export default function OrganizationPage() {
         return
       }
 
+      const organizationId = Array.isArray(params.id) ? params.id[0] : params.id
+      if (!organizationId) {
+        toast.error('Invalid organization ID')
+        router.push('/settings')
+        return
+      }
+
       // Get organization details
       const { data: org, error: orgError } = await supabase
         .from('organizations')
         .select('*, organization_members(count)')
-        .eq('id', params.id)
+        .eq('id', organizationId)
         .single()
 
       if (orgError) {
@@ -61,7 +112,7 @@ export default function OrganizationPage() {
       const { data: membership, error: membershipError } = await supabase
         .from('organization_members')
         .select('role')
-        .eq('organization_id', params.id)
+        .eq('organization_id', organizationId)
         .eq('user_id', session.user.id)
         .single()
 
@@ -77,7 +128,7 @@ export default function OrganizationPage() {
       setOrganization({
         ...org,
         member_count: org.organization_members[0].count,
-        role: membership.role
+        role: membership.role as 'owner' | 'admin' | 'member'
       })
     } catch (error) {
       console.error('Error loading organization:', error)
@@ -88,10 +139,15 @@ export default function OrganizationPage() {
     }
   }
 
-  if (loading) {
+  if (loading || checkingPayment) {
     return (
       <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
+        <div className="flex flex-col items-center gap-2">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
+          {checkingPayment && (
+            <p className="text-sm text-gray-600">Processing your payment...</p>
+          )}
+        </div>
       </div>
     )
   }
@@ -155,7 +211,11 @@ export default function OrganizationPage() {
         </Card>
 
         {organization.role === 'owner' && (
-          <SettingsBilling organizationId={organization.id} />
+          <SettingsBilling 
+            organizationId={organization.id} 
+            key={subscriptionRefreshKey}
+            onSubscriptionUpdate={handleSubscriptionUpdate}
+          />
         )}
       </div>
     </div>
