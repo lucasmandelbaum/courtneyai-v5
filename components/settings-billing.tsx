@@ -3,11 +3,10 @@ import { Button, Card, CardBody, CardHeader, Modal, ModalContent, ModalHeader, M
 import { useRouter } from 'next/navigation'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { toast } from 'sonner'
-import { CheckCircle2, AlertTriangle, X, RefreshCw } from 'lucide-react'
+import { CheckCircle2, AlertTriangle, X } from 'lucide-react'
 
 interface BillingSettingsProps {
   organizationId: string
-  onSubscriptionUpdate?: () => void
 }
 
 interface PricingPlan {
@@ -21,10 +20,9 @@ interface PricingPlan {
   active: boolean
 }
 
-export function SettingsBilling({ organizationId, onSubscriptionUpdate }: BillingSettingsProps) {
+export function SettingsBilling({ organizationId }: BillingSettingsProps) {
   const [loading, setLoading] = useState(false)
   const [cancelLoading, setCancelLoading] = useState(false)
-  const [refreshing, setRefreshing] = useState(false)
   const [plans, setPlans] = useState<PricingPlan[]>([])
   const [currentSubscription, setCurrentSubscription] = useState<any>(null)
   const { isOpen, onOpen, onOpenChange } = useDisclosure()
@@ -54,7 +52,6 @@ export function SettingsBilling({ organizationId, onSubscriptionUpdate }: Billin
 
   const fetchCurrentSubscription = async () => {
     try {
-      setRefreshing(true)
       const { data, error } = await supabase
         .from('organization_subscriptions')
         .select(`
@@ -73,22 +70,10 @@ export function SettingsBilling({ organizationId, onSubscriptionUpdate }: Billin
       if (error) throw error
       console.log('Current subscription data:', data)
       setCurrentSubscription(data)
-      
-      // Call the callback if subscription was updated
-      if (onSubscriptionUpdate) {
-        onSubscriptionUpdate()
-      }
     } catch (error) {
       console.error('Error fetching subscription:', error)
       toast.error('Failed to load current subscription')
-    } finally {
-      setRefreshing(false)
     }
-  }
-
-  const handleRefreshSubscription = async () => {
-    await fetchCurrentSubscription()
-    toast.success('Subscription status refreshed')
   }
 
   const handleSubscribe = async (priceId: string) => {
@@ -210,29 +195,17 @@ export function SettingsBilling({ organizationId, onSubscriptionUpdate }: Billin
             <div className="mb-6 p-4 bg-gray-50 rounded-lg">
               <div className="flex justify-between items-start mb-2">
                 <h3 className="text-lg font-semibold">Current Subscription</h3>
-                <div className="flex gap-2">
+                {canCancelSubscription() && (
                   <Button
-                    color="default"
+                    color="danger"
                     variant="light"
                     size="sm"
-                    onClick={handleRefreshSubscription}
-                    isLoading={refreshing}
-                    startContent={!refreshing && <RefreshCw className="h-4 w-4" />}
+                    onClick={onOpen}
+                    startContent={<X className="h-4 w-4" />}
                   >
-                    Refresh
+                    Cancel Subscription
                   </Button>
-                  {canCancelSubscription() && (
-                    <Button
-                      color="danger"
-                      variant="light"
-                      size="sm"
-                      onClick={onOpen}
-                      startContent={<X className="h-4 w-4" />}
-                    >
-                      Cancel Subscription
-                    </Button>
-                  )}
-                </div>
+                )}
               </div>
               <p className="text-gray-600">
                 Plan: {currentSubscription.pricing_plan?.name || 'Unknown Plan'}

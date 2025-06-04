@@ -146,7 +146,7 @@ Deno.serve(async (req: Request) => {
       }],
       mode: 'subscription',
       success_url: `${appUrl}/organization/${organizationId}?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${appUrl}/organization/${organizationId}`,
+      cancel_url: `${appUrl}/organizations/${organizationId}`,
       subscription_data: {
         metadata: {
           organization_id: org.id
