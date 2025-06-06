@@ -145,6 +145,7 @@ Deno.serve(async (req: Request) => {
         quantity: 1
       }],
       mode: 'subscription',
+      allow_promotion_codes: true,
       success_url: `${appUrl}/organization/${organizationId}?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${appUrl}/organizations/${organizationId}`,
       subscription_data: {
