@@ -6,7 +6,6 @@ import { createBrowserSupabaseClient, signOut } from '@/lib/supabase-browser'
 import { Button, Input, Card, CardBody, CardHeader, Tabs, Tab } from '@nextui-org/react'
 import { motion } from 'framer-motion'
 import { LogOut } from 'lucide-react'
-import { PostgrestError } from '@supabase/supabase-js'
 
 export default function OrganizationSetup() {
   const [loading, setLoading] = useState(false)
@@ -38,7 +37,7 @@ export default function OrganizationSetup() {
       }
     } catch (error) {
       console.error('Error checking organization:', error)
-      if (error instanceof PostgrestError) {
+      if (error instanceof Error) {
         setError(error.message)
       } else {
         setError('Failed to check organization membership')
@@ -54,94 +53,54 @@ export default function OrganizationSetup() {
     try {
       const formData = new FormData(e.currentTarget as HTMLFormElement)
       const name = String(formData.get('name'))
-      const slug = String(formData.get('name'))
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '')
 
-      console.log('Creating organization:', { name, slug })
+      console.log('Creating organization:', { name })
 
-      // Get current user first to ensure we're authenticated
+      // Get current user and session for API call
       const { data: { user }, error: userError } = await supabase.auth.getUser()
       if (userError) {
+        console.error('User auth error:', userError)
         throw userError
       }
       if (!user) {
-        throw new Error('No authenticated user found')
+        throw new Error('No authenticated user found. Please sign in again.')
+      }
+
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        throw new Error('No session found. Please sign in again.')
       }
 
       console.log('User authenticated:', user.id)
 
-      // Create organization
-      const { data: orgData, error: orgError } = await supabase
-        .from('organizations')
-        .insert({ name, slug })
-        .select()
-        .single()
+      // Call Edge function to create organization
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/create-organization`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name })
+      })
 
-      if (orgError) {
-        if (orgError.code === '23505') {
-          throw new Error('An organization with this name already exists')
-        }
-        throw orgError
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to create organization')
       }
 
-      if (!orgData) {
-        throw new Error('Failed to create organization')
-      }
+      console.log('Organization created successfully:', result.data)
 
-      console.log('Organization created:', orgData.id)
-
-      // Add user as owner
-      const { error: memberError } = await supabase
-        .from('organization_members')
-        .insert({
-          organization_id: orgData.id,
-          user_id: user.id,
-          role: 'owner'
-        })
-
-      if (memberError) {
-        console.error('Failed to add user as owner:', memberError)
-        // Cleanup the created organization if member creation fails
-        await supabase
-          .from('organizations')
-          .delete()
-          .eq('id', orgData.id)
-        throw memberError
-      }
-
-      console.log('User added as owner, verifying membership...')
-
-      // Wait a moment and verify the membership was created successfully
-      // This helps avoid race condition with middleware
+      // Wait a moment for database consistency
       await new Promise(resolve => setTimeout(resolve, 500))
-      
-      const { data: verifyMember, error: verifyError } = await supabase
-        .from('organization_members')
-        .select('organization_id, role')
-        .eq('user_id', user.id)
-        .eq('organization_id', orgData.id)
-        .single()
 
-      if (verifyError || !verifyMember) {
-        console.error('Failed to verify membership:', verifyError)
-        throw new Error('Organization created but membership verification failed')
-      }
-
-      console.log('Membership verified, redirecting to dashboard...')
+      console.log('Redirecting to dashboard...')
 
       // Redirect to home
       router.replace('/')
     } catch (error) {
       console.error('Error creating organization:', error)
-      if (error instanceof PostgrestError) {
-        setError(error.message)
-      } else if (error instanceof Error) {
-        setError(error.message)
-      } else {
-        setError('An unexpected error occurred while creating the organization')
-      }
+      setError(error instanceof Error ? error.message : 'An unexpected error occurred while creating the organization')
     } finally {
       setLoading(false)
     }
@@ -159,12 +118,22 @@ export default function OrganizationSetup() {
       console.log('Joining organization with code:', code)
 
       // Get current user
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError) {
+        console.error('User auth error:', userError)
+        throw userError
+      }
+      if (!user) {
         throw new Error('You must be logged in')
       }
 
-      console.log('User authenticated:', session.user.id)
+      console.log('User authenticated:', user.id)
+
+      // Get user session for the access token
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        throw new Error('No session found. Please sign in again.')
+      }
 
       const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/invite-member/use`, {
         method: 'POST',
@@ -190,7 +159,7 @@ export default function OrganizationSetup() {
       const { data: verifyMember, error: verifyError } = await supabase
         .from('organization_members')
         .select('organization_id, role')
-        .eq('user_id', session.user.id)
+        .eq('user_id', user.id)
         .single()
 
       if (verifyError || !verifyMember) {
