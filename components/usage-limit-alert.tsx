@@ -64,10 +64,8 @@ export function UsageLimitAlert({
 
   // Helper function to check if we should hide team_members alert for free plan
   const shouldHideTeamMembersAlert = (metric: keyof UsageMetrics, data: UsageData): boolean => {
-    return metric === 'team_members' && 
-           data.planName === 'Free Plan' && 
-           data.limit === 1 && 
-           data.currentUsage === 1
+    // Always hide team_members alerts
+    return metric === 'team_members'
   }
 
   let metricsToShow: [keyof UsageMetrics, UsageData][] = []
@@ -202,16 +200,6 @@ export function ProductLimitAlert(props: Omit<UsageLimitAlertProps, 'metric'>) {
 }
 
 export function TeamMemberLimitAlert(props: Omit<UsageLimitAlertProps, 'metric'>) {
-  const { usage } = useUsage()
-  const teamMembersData = usage.team_members
-  
-  // Don't show team_members alert for free plan with 1 user (expected usage)
-  if (teamMembersData && 
-      teamMembersData.planName === 'Free Plan' && 
-      teamMembersData.limit === 1 && 
-      teamMembersData.currentUsage === 1) {
-    return null
-  }
-  
-  return <UsageLimitAlert {...props} metric="team_members" />
+  // Never show team member limit alerts
+  return null
 } 

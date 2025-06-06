@@ -2,7 +2,6 @@
 /// <reference lib="deno.unstable" />
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { serve } from 'https://deno.land/std@0.208.0/http/server.ts'
 import Stripe from 'https://esm.sh/stripe@14?target=denonext'
 
 // Helper function for structured logging
@@ -16,10 +15,10 @@ function log(level: string, message: string, details: any = {}) {
   console.log(JSON.stringify(logEntry))
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, stripe-signature',
   }
 
   // Handle preflight CORS
@@ -32,7 +31,7 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
     const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY') || ''
-    const stripeWebhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET') || ''
+    const stripeWebhookSecret = Deno.env.get('STRIPE_WEBHOOK_SIGNING_SECRET') || ''
 
     if (!supabaseUrl || !supabaseServiceKey || !stripeSecretKey || !stripeWebhookSecret) {
       log('error', 'Missing environment variables', {
