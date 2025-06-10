@@ -45,6 +45,47 @@ export default function OrganizationSetup() {
     }
   }
 
+  const waitForOrganizationMembership = async (userId: string): Promise<boolean> => {
+    let retries = 0
+    const maxRetries = 20 // 10 seconds total with 500ms delays
+    
+    console.log('Waiting for organization membership to be confirmed...')
+    
+    while (retries < maxRetries) {
+      try {
+        const { data: memberData, error: memberError } = await supabase
+          .from('organization_members')
+          .select('organization_id, role')
+          .eq('user_id', userId)
+          .single()
+
+        if (memberError && memberError.code !== 'PGRST116') {
+          console.error('Error checking membership:', memberError)
+          throw memberError
+        }
+
+        if (memberData?.organization_id) {
+          console.log('Organization membership confirmed:', {
+            organizationId: memberData.organization_id,
+            role: memberData.role,
+            attemptsUsed: retries + 1
+          })
+          return true
+        }
+
+        console.log(`Membership not found yet, retrying... (${retries + 1}/${maxRetries})`)
+        await new Promise(resolve => setTimeout(resolve, 500))
+        retries++
+      } catch (error) {
+        console.error('Error during membership check:', error)
+        throw error
+      }
+    }
+
+    console.error('Failed to confirm organization membership after maximum retries')
+    return false
+  }
+
   const handleCreateOrganization = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -91,8 +132,12 @@ export default function OrganizationSetup() {
 
       console.log('Organization created successfully:', result.data)
 
-      // Wait a moment for database consistency
-      await new Promise(resolve => setTimeout(resolve, 500))
+      // Wait for organization membership to be confirmed in database
+      const membershipConfirmed = await waitForOrganizationMembership(user.id)
+      
+      if (!membershipConfirmed) {
+        throw new Error('Organization was created but membership confirmation timed out. Please refresh the page.')
+      }
 
       console.log('Redirecting to dashboard...')
 
@@ -152,25 +197,14 @@ export default function OrganizationSetup() {
 
       console.log('Successfully joined organization, verifying membership...')
 
-      // Wait a moment and verify the membership was created successfully
-      // This helps avoid race condition with middleware
-      await new Promise(resolve => setTimeout(resolve, 500))
+      // Wait for organization membership to be confirmed in database
+      const membershipConfirmed = await waitForOrganizationMembership(user.id)
       
-      const { data: verifyMember, error: verifyError } = await supabase
-        .from('organization_members')
-        .select('organization_id, role')
-        .eq('user_id', user.id)
-        .single()
-
-      if (verifyError || !verifyMember) {
-        console.error('Failed to verify membership after joining:', verifyError)
-        throw new Error('Joined organization but membership verification failed')
+      if (!membershipConfirmed) {
+        throw new Error('Joined organization but membership confirmation timed out. Please refresh the page.')
       }
 
-      console.log('Membership verified, redirecting to dashboard...', {
-        organizationId: verifyMember.organization_id,
-        role: verifyMember.role
-      })
+      console.log('Membership verified, redirecting to dashboard...')
 
       // Redirect to home
       router.replace('/')
