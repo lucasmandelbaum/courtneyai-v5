@@ -104,7 +104,7 @@ export default function SignIn() {
                 classNames={{
                   label: "text-sm font-medium",
                   inputWrapper: "h-12 gap-3 pl-3",
-                  input: "text-sm"
+                  input: "text-base md:text-sm"
                 }}
                 required
               />
@@ -130,7 +130,7 @@ export default function SignIn() {
                 classNames={{
                   label: "text-sm font-medium",
                   inputWrapper: "h-12 gap-3 pl-3",
-                  input: "text-sm"
+                  input: "text-base md:text-sm"
                 }}
                 required
               />
