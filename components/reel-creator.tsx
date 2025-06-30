@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, ReactNode, useCallback } from "react"
-import { Check, Film, ImageIcon, MessageSquareText, Music, Play, Loader2, Plus, X } from "lucide-react"
+import { Check, Film, ImageIcon, MessageSquareText, Music, Play, Loader2, Plus, X, Mic, Type } from "lucide-react"
 import { 
   Button, 
   Card, 
@@ -25,6 +25,7 @@ import { useReels, ReelStatus } from "@/hooks/useReels"
 import { useScripts } from "@/hooks/useScripts"
 import { useMedia } from "@/hooks/useMedia"
 import { useUsage } from "@/hooks/useUsage"
+import { useVoices, Voice } from "@/hooks/useVoices"
 import { VideoPreview } from "@/components/video-preview"
 import { toast } from "sonner"
 import { createBrowserSupabaseClient } from "@/lib/supabase-browser"
@@ -41,7 +42,7 @@ interface ReelCreatorProps {
   onReelGenerated?: () => void;
 }
 
-type Step = 1 | 2;
+type Step = 1 | 2 | 3;
 
 // Custom Radio component for scripts
 const CustomScriptRadio = (props: any) => {
@@ -90,12 +91,15 @@ export function ReelCreator({ productId, onReelGenerated }: ReelCreatorProps) {
   const [selectedScript, setSelectedScript] = useState<string>("")
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([])
   const [selectedVideos, setSelectedVideos] = useState<string[]>([])
+  const [selectedVoiceId, setSelectedVoiceId] = useState<string>("")
+  const [selectedFontSize, setSelectedFontSize] = useState<'small' | 'medium' | 'large'>('medium')
   const [currentGeneratingReelId, setCurrentGeneratingReelId] = useState<string | undefined>(undefined)
 
   const { createReel, reelStatuses, refetch } = useReels(productId)
   const { scripts } = useScripts(productId)
   const { photos, videos } = useMedia(productId)
   const { updateUsageFromResponse, isAtLimit, isNearLimit, usage } = useUsage()
+  const { voices, defaultVoice, isLoading: voicesLoading } = useVoices()
 
   // Check if user is at or near limit
   const reelsAtLimit = isAtLimit('reels_per_month')
@@ -141,6 +145,8 @@ export function ReelCreator({ productId, onReelGenerated }: ReelCreatorProps) {
     setSelectedScript("")
     setSelectedPhotos([])
     setSelectedVideos([])
+    setSelectedVoiceId("")
+    setSelectedFontSize('medium')
     setCurrentStep(1)
     setIsCurrentReelGenerating(false)
     setCurrentGeneratingReelId(undefined)
@@ -238,7 +244,9 @@ export function ReelCreator({ productId, onReelGenerated }: ReelCreatorProps) {
           scriptId: selectedScript,
           photoIds: selectedPhotos,
           videoIds: selectedVideos,
-          title
+          title,
+          fontSize: selectedFontSize,
+          voiceId: selectedVoiceId || undefined // Only include if not empty
         }),
         credentials: 'include'
       })
@@ -478,6 +486,106 @@ export function ReelCreator({ productId, onReelGenerated }: ReelCreatorProps) {
                 )}
               </div>
             )}
+
+            {currentStep === 3 && (
+              <div className="space-y-6">
+                <h4 className="text-medium font-medium">Customize Voice & Appearance</h4>
+                
+                {/* Voice Selection */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Mic className="h-4 w-4" />
+                    <h5 className="text-small font-medium">Voice Selection (Optional)</h5>
+                  </div>
+                  {voicesLoading ? (
+                    <Card>
+                      <CardBody className="text-center">
+                        <Loader2 className="h-4 w-4 animate-spin mx-auto mb-2" />
+                        <p className="text-default-500">Loading voices...</p>
+                      </CardBody>
+                    </Card>
+                  ) : voices.length > 0 ? (
+                    <RadioGroup
+                      value={selectedVoiceId}
+                      onValueChange={setSelectedVoiceId}
+                      className="max-h-64 overflow-y-auto space-y-2"
+                    >
+                      <Radio key="default" value="">
+                        <div className="flex flex-col">
+                          <span className="font-medium">Default Voice</span>
+                          <span className="text-small text-default-500">
+                            {defaultVoice ? `${defaultVoice.name} - ${defaultVoice.description}` : 'System default (Brittney)'}
+                          </span>
+                        </div>
+                      </Radio>
+                      {voices.map((voice) => (
+                        <Radio key={voice.voice_id} value={voice.voice_id}>
+                          <div className="flex flex-col">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{voice.name}</span>
+                              {voice.is_default && (
+                                <Chip size="sm" color="primary" variant="flat">Default</Chip>
+                              )}
+                            </div>
+                            <span className="text-small text-default-500">{voice.description}</span>
+                            <div className="flex gap-1 mt-1">
+                              {voice.gender && (
+                                <Chip size="sm" variant="flat" color="default">{voice.gender}</Chip>
+                              )}
+                              {voice.age && (
+                                <Chip size="sm" variant="flat" color="default">{voice.age}</Chip>
+                              )}
+                              {voice.accent && (
+                                <Chip size="sm" variant="flat" color="default">{voice.accent}</Chip>
+                              )}
+                            </div>
+                          </div>
+                        </Radio>
+                      ))}
+                    </RadioGroup>
+                  ) : (
+                    <Card>
+                      <CardBody className="text-center">
+                        <p className="text-default-500">No custom voices available. Default voice will be used.</p>
+                      </CardBody>
+                    </Card>
+                  )}
+                </div>
+
+                {/* Font Size Selection */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Type className="h-4 w-4" />
+                    <h5 className="text-small font-medium">Subtitle Font Size</h5>
+                  </div>
+                  <RadioGroup
+                    orientation="horizontal"
+                    value={selectedFontSize}
+                    onValueChange={(value) => setSelectedFontSize(value as 'small' | 'medium' | 'large')}
+                    className="flex gap-4"
+                  >
+                    <Radio value="small">
+                      <div className="flex flex-col items-center">
+                        <span className="font-medium">Small</span>
+                        <span className="text-small text-default-500">Compact</span>
+                      </div>
+                    </Radio>
+                    <Radio value="medium">
+                      <div className="flex flex-col items-center">
+                        <span className="font-medium">Medium</span>
+                        <span className="text-small text-default-500">Balanced</span>
+                      </div>
+                    </Radio>
+                    <Radio value="large">
+                      <div className="flex flex-col items-center">
+                        <span className="font-medium">Large</span>
+                        <span className="text-small text-default-500">Accessible</span>
+                      </div>
+                    </Radio>
+                  </RadioGroup>
+                </div>
+              </div>
+            )}
           </ModalBody>
 
           <ModalFooter>
@@ -501,11 +609,14 @@ export function ReelCreator({ productId, onReelGenerated }: ReelCreatorProps) {
                 >
                   Cancel
                 </Button>
-                {currentStep < 2 ? (
+                {currentStep < 3 ? (
                   <Button 
                     color="primary"
                     onPress={handleNextStep}
-                    isDisabled={!selectedScript}
+                    isDisabled={
+                      (currentStep === 1 && !selectedScript) ||
+                      (currentStep === 2 && selectedPhotos.length === 0 && selectedVideos.length === 0)
+                    }
                   >
                     Next
                   </Button>

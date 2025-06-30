@@ -117,6 +117,25 @@ interface Database {
           ordered_media?: string;
         }
       };
+      voices: {
+        Row: {
+          id: string;
+          voice_id: string;
+          name: string;
+          description: string | null;
+          category: string;
+          gender: string | null;
+          age: string | null;
+          accent: string | null;
+          use_case: string | null;
+          descriptive: string | null;
+          preview_url: string | null;
+          is_active: boolean;
+          is_default: boolean;
+          created_at: string;
+          updated_at: string;
+        }
+      };
     };
   };
 }
@@ -172,6 +191,8 @@ interface ReelInput {
   photoIds?: string[];
   videoIds?: string[];
   title: string;
+  fontSize?: 'small' | 'medium' | 'large';
+  voiceId?: string; // Optional ElevenLabs voice ID
 }
 
 interface StorageBucket {
@@ -471,7 +492,9 @@ Deno.serve(async (req: Request) => {
         input.videoIds,
         input.scriptId,
         creatomateApiKey,
-        elevenlabsApiKey
+        elevenlabsApiKey,
+        input.fontSize || 'medium',
+        input.voiceId
       ).catch(error => {
         console.error('Error in video generation:', error);
         updateReelStatus(supabaseUser, reel.id, REEL_STATUS.FAILED).catch(console.error);
@@ -516,6 +539,44 @@ Deno.serve(async (req: Request) => {
   }
 });
 
+// Helper function to get the voice ID to use for audio generation
+async function getVoiceId(
+  supabaseClient: any,
+  requestedVoiceId?: string
+): Promise<string> {
+  // If a specific voice ID is requested, validate it exists in our database
+  if (requestedVoiceId) {
+    const { data: voice, error } = await supabaseClient
+      .from('voices')
+      .select('voice_id')
+      .eq('voice_id', requestedVoiceId)
+      .eq('is_active', true)
+      .single();
+
+    if (!error && voice) {
+      return voice.voice_id;
+    }
+    
+    console.warn(`Requested voice ID ${requestedVoiceId} not found or inactive, falling back to default`);
+  }
+
+  // Fall back to default voice
+  const { data: defaultVoice, error: defaultError } = await supabaseClient
+    .from('voices')
+    .select('voice_id')
+    .eq('is_default', true)
+    .eq('is_active', true)
+    .single();
+
+  if (!defaultError && defaultVoice) {
+    return defaultVoice.voice_id;
+  }
+
+  // Ultimate fallback to hardcoded default
+  console.warn('No default voice found in database, using hardcoded fallback');
+  return 'kPzsL2i3teMYv0FxEYQ6'; // Brittney
+}
+
 async function startVideoGeneration(
   supabaseClient: any,
   supabaseUser: any,
@@ -524,7 +585,9 @@ async function startVideoGeneration(
   videoIds: string[] | undefined,
   scriptId: string | undefined,
   creatomateApiKey: string,
-  elevenlabsApiKey: string
+  elevenlabsApiKey: string,
+  fontSize: 'small' | 'medium' | 'large' = 'medium',
+  voiceId?: string
 ) {
   const startTime = Date.now();
   log('info', 'Video generation function entered', reel.id, {});
@@ -566,7 +629,15 @@ async function startVideoGeneration(
     if (scriptId) {
       try {
         await updateReelStatus(supabaseUser, reel.id, REEL_STATUS.GENERATING_AUDIO, 30);
-        const audioResult = await generateAudio(supabaseUser, reel, scriptId, elevenlabsApiKey);
+        
+        // Get the voice ID to use (validate provided ID or get default)
+        const selectedVoiceId = await getVoiceId(supabaseClient, voiceId);
+        log('info', 'Using voice for audio generation', reel.id, {
+          requested_voice_id: voiceId,
+          selected_voice_id: selectedVoiceId
+        });
+        
+        const audioResult = await generateAudio(supabaseUser, reel, scriptId, elevenlabsApiKey, selectedVoiceId);
         audioUrl = audioResult.audioUrl;
         audioTranscription = audioResult.transcription;
       } catch (audioError) {
@@ -710,7 +781,7 @@ async function startVideoGeneration(
 
     // Process completed render
     const render = completedRenders[0];
-    await processCompletedRender(supabaseUser, reel, render);
+    await processCompletedRender(supabaseUser, reel, render, fontSize);
 
     await updateReelStatus(supabaseUser, reel.id, REEL_STATUS.COMPLETED, 100);
 
@@ -771,7 +842,8 @@ async function generateAudio(
   supabaseClient: any,
   reel: any,
   scriptId: string,
-  elevenlabsApiKey: string
+  elevenlabsApiKey: string,
+  voiceId: string
 ): Promise<AudioGenerationResult> {
   log('info', 'Starting audio generation', reel.id, { script_id: scriptId });
 
@@ -794,9 +866,9 @@ async function generateAudio(
     apiKey: elevenlabsApiKey
   });
 
-  // Generate audio from text
+  // Generate audio from text using the specified voice
   const audioResponse = await fetch(
-    'https://api.elevenlabs.io/v1/text-to-speech/kPzsL2i3teMYv0FxEYQ6?output_format=mp3_44100_128',
+    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
     {
       method: 'POST',
       headers: {
@@ -810,6 +882,11 @@ async function generateAudio(
       })
     }
   );
+
+  log('info', 'Generated audio with voice', reel.id, {
+    voice_id: voiceId,
+    script_length: script.content.length
+  });
 
   if (!audioResponse.ok) {
     const errorText = await audioResponse.text();
@@ -1177,15 +1254,26 @@ async function addSubtitlesToVideo(
   render: any,
   audioTranscription: ElevenLabsTranscription | null,
   creatomateApiKey: string,
-  reelId: string
+  reelId: string,
+  fontSize: 'small' | 'medium' | 'large' = 'medium'
 ): Promise<any> {
   if (!audioTranscription) {
     log('info', 'No transcription available, skipping subtitles', reelId, {});
     return render;
   }
 
+  // Map fontSize to vmin values
+  const fontSizeMap = {
+    small: '4 vmin',    // current size
+    medium: '6.5 vmin', // between small and large
+    large: '9 vmin'     // largest size
+  };
+
+  const selectedFontSize = fontSizeMap[fontSize];
+
   log('info', 'Starting subtitle addition process', reelId, {
-    original_render_url: render.url
+    original_render_url: render.url,
+    font_size: selectedFontSize
   });
 
   const subtitleRequest = {
@@ -1219,7 +1307,7 @@ async function addSubtitlesToVideo(
           stroke_width: '0.5 vmin',
           font_family: 'Aileron',
           font_weight: '700',
-          font_size: '4 vmin',
+          font_size: selectedFontSize,
           background_color: 'rgba(0,0,0,0)',
           background_x_padding: '0%',
           background_y_padding: '0%',
@@ -1265,7 +1353,8 @@ async function addSubtitlesToVideo(
 async function processCompletedRender(
   supabaseClient: any,
   reel: any,
-  render: any
+  render: any,
+  fontSize: 'small' | 'medium' | 'large' = 'medium'
 ) {
   try {
     // Get the creatomate API key
@@ -1287,7 +1376,7 @@ async function processCompletedRender(
     const audioTranscription = audioData?.transcription || null;
 
     // Add subtitles to the video
-    const finalRender = await addSubtitlesToVideo(render, audioTranscription, creatomateApiKey, reel.id);
+    const finalRender = await addSubtitlesToVideo(render, audioTranscription, creatomateApiKey, reel.id, fontSize);
 
     log('info', 'Starting video download', reel.id, {
       render_url: finalRender.url
