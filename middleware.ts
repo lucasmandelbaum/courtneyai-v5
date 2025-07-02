@@ -31,12 +31,28 @@ export async function middleware(req: NextRequest) {
     // Create supabase client with middleware helper
     const supabase = createMiddlewareClient<Database>({ req, res })
 
-    // Refresh session if expired - required for Server Components
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-
-    if (sessionError) {
-      console.error('Session error:', sessionError)
-      return NextResponse.redirect(new URL('/sign-in', baseUrl))
+    // Only try to refresh session if we don't already have one
+    // This prevents excessive token refresh calls
+    let session = null
+    try {
+      const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession()
+      
+      if (sessionError) {
+        console.error('Session error:', sessionError)
+        // Only redirect on critical errors, not rate limiting
+        if (!sessionError.message?.includes('rate limit') && !sessionError.message?.includes('429')) {
+          return NextResponse.redirect(new URL('/sign-in', baseUrl))
+        }
+      }
+      
+      session = currentSession
+    } catch (error: any) {
+      console.error('Auth check failed:', error)
+      // If we're rate limited, allow the request to continue
+      if (error.message?.includes('rate limit') || error.message?.includes('429')) {
+        console.log('Rate limited, allowing request to continue')
+        return res
+      }
     }
 
     // If not signed in and not on an auth route, redirect to sign in
@@ -49,40 +65,44 @@ export async function middleware(req: NextRequest) {
     if (session && !isNoOrgRoute) {
       console.log('Checking organization membership for user:', session.user.id)
       
-      const { data: memberData, error: memberError } = await supabase
-        .from('organization_members')
-        .select('organization_id, role')
-        .eq('user_id', session.user.id)
-        .single()
+      try {
+        const { data: memberData, error: memberError } = await supabase
+          .from('organization_members')
+          .select('organization_id, role')
+          .eq('user_id', session.user.id)
+          .single()
 
-      if (memberError) {
-        console.error('Error checking organization membership:', memberError)
-        
-        // Only redirect if it's not a "no rows returned" error
-        if (memberError.code !== 'PGRST116') {
-          return NextResponse.redirect(new URL('/sign-in', baseUrl))
+        if (memberError) {
+          console.error('Error checking organization membership:', memberError)
+          
+          // Only redirect if it's not a "no rows returned" error
+          if (memberError.code !== 'PGRST116') {
+            return NextResponse.redirect(new URL('/sign-in', baseUrl))
+          }
         }
-      }
 
-      if (!memberData?.organization_id) {
-        console.log('User has no organization, redirecting to setup')
-        return NextResponse.redirect(new URL('/organization-setup', baseUrl))
-      }
+        if (!memberData?.organization_id) {
+          console.log('User has no organization, redirecting to setup')
+          return NextResponse.redirect(new URL('/organization-setup', baseUrl))
+        }
 
-      console.log('User has organization membership:', {
-        organizationId: memberData.organization_id,
-        role: memberData.role
-      })
+        console.log('User has organization membership:', {
+          organizationId: memberData.organization_id,
+          role: memberData.role
+        })
+      } catch (error) {
+        console.error('Organization check failed:', error)
+        // Continue if organization check fails rather than blocking
+      }
     }
     
     return res
 
   } catch (error) {
     console.error('Middleware error:', error)
-    // On error, redirect to sign-in with the current URL as base
-    const url = new URL(req.url)
-    const baseUrl = `${url.protocol}//${url.host}`
-    return NextResponse.redirect(new URL('/sign-in', baseUrl))
+    // On error, allow request to continue rather than redirect
+    // This prevents auth loops during rate limiting
+    return NextResponse.next()
   }
 }
 
