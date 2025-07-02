@@ -114,7 +114,9 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - Static file extensions (.svg, .png, .jpg, .jpeg, .gif, .webp, .ico, .css, .js, etc.)
+     * - API routes (they handle their own auth)
+     * - Auth routes (sign-in, sign-up, etc.)
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|eot)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/|sign-in|sign-up|forgot-password|auth/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|eot)$).*)',
   ],
 } 
